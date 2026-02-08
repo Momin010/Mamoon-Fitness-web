@@ -37,6 +37,8 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
   const [showManualInput, setShowManualInput] = useState(false);
   const [detectedBarcode, setDetectedBarcode] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState(true);
+  const [debugInfo, setDebugInfo] = useState<string>('Initializing...');
+  const [loopCount, setLoopCount] = useState(0);
 
   // Check if BarcodeDetector is supported
   useEffect(() => {
@@ -183,43 +185,39 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
 
   // Detection loop with stabilizer
   const detectLoop = useCallback(async () => {
-    console.log('[BarcodeScanner] detectLoop called - isScanning:', isScanning, 'hasDetector:', !!detectorRef.current, 'hasVideo:', !!videoRef.current);
+    setLoopCount(prev => prev + 1);
 
     if (!isScanning || !detectorRef.current || !videoRef.current) {
-      console.log('[BarcodeScanner] detectLoop skipped - not ready');
+      setDebugInfo('Loop stopped - not ready');
       return;
     }
 
     try {
-      console.log('[BarcodeScanner] Attempting to detect barcode...');
+      setDebugInfo('Scanning...');
       const barcodes = await detectorRef.current.detect(videoRef.current);
-      console.log('[BarcodeScanner] Detection result:', barcodes.length, 'barcodes found');
 
       if (barcodes.length > 0) {
         const barcode = barcodes[0].rawValue;
         const now = Date.now();
 
-        console.log('[BarcodeScanner] 🎯 Barcode detected:', barcode);
-
-        // Stabilizer: Require 3 consecutive detections within 500ms
         const existing = scanResultsRef.current.get(barcode);
 
         if (existing) {
           existing.count++;
           existing.lastSeen = now;
 
-          console.log('[BarcodeScanner] Detection count:', existing.count, '/ 3');
+          setDebugInfo(`Found: ${barcode.slice(0, 8)}... (${existing.count}/3)`);
 
           if (existing.count >= 3) {
             // Confirmed detection
-            console.log('[BarcodeScanner] ✅ Barcode confirmed:', barcode);
+            setDebugInfo(`✅ Confirmed: ${barcode}`);
             setDetectedBarcode(barcode);
             setIsScanning(false);
             onScan(barcode);
             return; // Stop loop
           }
         } else {
-          console.log('[BarcodeScanner] First detection of:', barcode);
+          setDebugInfo(`Detected: ${barcode.slice(0, 8)}... (1/3)`);
           scanResultsRef.current.set(barcode, {
             barcode,
             count: 1,
@@ -233,17 +231,18 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
             scanResultsRef.current.delete(key);
           }
         });
+      } else {
+        setDebugInfo('No barcode in frame');
       }
     } catch (err) {
-      console.error('[BarcodeScanner] Detection error:', err);
-      // Silent fail - continue scanning
+      setDebugInfo(`Error: ${err instanceof Error ? err.message : 'Unknown'}`);
     }
 
-    // Continue loop - use shorter delay for faster detection
+    // Continue loop
     if (isScanning) {
       setTimeout(() => {
         detectLoop();
-      }, 100); // Check every 100ms
+      }, 100);
     }
   }, [isScanning, onScan]);
 
@@ -355,6 +354,12 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
                 <p className="text-white/80 text-sm font-medium">
                   Hold barcode within the frame
                 </p>
+              </div>
+
+              {/* Debug Info */}
+              <div className="absolute top-4 left-4 right-4 bg-black/80 rounded-lg p-3 text-xs font-mono">
+                <p className="text-green-500">Status: {debugInfo}</p>
+                <p className="text-zinc-500">Scans: {loopCount}</p>
               </div>
             </div>
 
