@@ -50,15 +50,15 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
     console.log('[BarcodeScanner] BarcodeDetector in window:', 'BarcodeDetector' in window);
     console.log('[BarcodeScanner] typeof BarcodeDetector:', typeof (window as any).BarcodeDetector);
 
-    // Try to check if BarcodeDetector is actually functional
-    let isActuallySupported = false;
-    try {
-      if ('BarcodeDetector' in window) {
-        // Try to get supported formats
-        const detector = (window as any).BarcodeDetector;
-        console.log('[BarcodeScanner] BarcodeDetector constructor:', detector);
+    // Check if BarcodeDetector exists
+    if ('BarcodeDetector' in window && typeof (window as any).BarcodeDetector === 'function') {
+      console.log('[BarcodeScanner] ✅ BarcodeDetector API is supported!');
+      setIsSupported(true);
+      setShowManualInput(false); // Start with camera view
 
-        // Check if getSupportedFormats exists
+      // Try to get supported formats (optional, for debugging)
+      try {
+        const detector = (window as any).BarcodeDetector;
         if (typeof detector.getSupportedFormats === 'function') {
           detector.getSupportedFormats().then((formats: string[]) => {
             console.log('[BarcodeScanner] Supported formats:', formats);
@@ -66,30 +66,23 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
             console.error('[BarcodeScanner] Error getting formats:', err);
           });
         }
-
-        isActuallySupported = true;
+      } catch (err) {
+        console.error('[BarcodeScanner] Error checking formats:', err);
       }
-    } catch (err) {
-      console.error('[BarcodeScanner] Error checking BarcodeDetector:', err);
-    }
-
-    console.log('[BarcodeScanner] Is actually supported:', isActuallySupported);
-
-    if (!isActuallySupported) {
-      console.warn('[BarcodeScanner] BarcodeDetector API not supported in this browser');
+    } else {
+      console.warn('[BarcodeScanner] ❌ BarcodeDetector API not supported in this browser');
       setIsSupported(false);
       setShowManualInput(true);
 
       // Check if it's Chrome/Edge (which support it but need flag enabled)
       const isChrome = /Chrome|Edg/.test(navigator.userAgent);
-      if (isChrome) {
+      const isAndroid = /Android/.test(navigator.userAgent);
+
+      if (isChrome && !isAndroid) {
         setError('Camera scanning requires enabling "Experimental Web Platform features" in chrome://flags. Use manual entry for now.');
       } else {
         setError('Camera scanning not supported in this browser. Please use manual entry.');
       }
-    } else {
-      console.log('[BarcodeScanner] BarcodeDetector API is supported!');
-      setIsSupported(true);
     }
   }, []);
 
