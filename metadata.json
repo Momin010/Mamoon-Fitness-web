@@ -1,0 +1,7 @@
+{
+  "name": "Forge Fitness & RPG",
+  "description": "A gamified fitness application where users track workouts, macros, and tasks to earn XP, level up their character, and compete on a leaderboard.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
