@@ -298,14 +298,19 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
         )}
 
         {/* Camera View */}
+        {(() => {
+          console.log('[BarcodeScanner] Render check - isSupported:', isSupported, 'showManualInput:', showManualInput, 'hasPermission:', hasPermission);
+          return null;
+        })()}
         {isSupported && !showManualInput && (
-          <div className="flex-1 relative overflow-hidden">
+          <div className="flex-1 relative overflow-hidden bg-black min-h-[400px]">
             {/* Video */}
             <video
               ref={videoRef}
               className="absolute inset-0 w-full h-full object-cover"
               playsInline
               muted
+              autoPlay
             />
 
             {/* Scanning Overlay */}
