@@ -1,14 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Camera, AlertCircle, Keyboard, Loader2 } from 'lucide-react';
-
-// Type declaration for BarcodeDetector API
-declare global {
-  interface Window {
-    BarcodeDetector?: new (options: { formats: string[] }) => {
-      detect: (image: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement | ImageBitmap | Blob | ImageData) => Promise<Array<{ rawValue: string }>>;
-    };
-  }
-}
+import { X, Camera, AlertCircle, Keyboard, Loader2, Scan } from 'lucide-react';
+import { Html5Qrcode } from 'html5-qrcode';
 
 interface BarcodeScannerProps {
   isOpen: boolean;
@@ -16,19 +8,21 @@ interface BarcodeScannerProps {
   onScan: (barcode: string) => void;
 }
 
-interface ScanResult {
-  barcode: string;
-  count: number;
-  lastSeen: number;
-}
+// Barcode formats supported by html5-qrcode
+const BARCODE_FORMATS = [
+  'EAN_13',
+  'EAN_8',
+  'UPC_A',
+  'UPC_E',
+  'CODE_128',
+  'CODE_39',
+  'QR_CODE'
+];
 
 const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan }): React.ReactElement | null => {
-
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const detectorRef = useRef<any>(null); // BarcodeDetector type
-  const animationRef = useRef<number | null>(null);
-  const scanResultsRef = useRef<Map<string, ScanResult>>(new Map());
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+  const isInitializedRef = useRef<boolean>(false);
+  const lastScannedRef = useRef<string | null>(null);
 
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -36,238 +30,188 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
   const [manualBarcode, setManualBarcode] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
   const [detectedBarcode, setDetectedBarcode] = useState<string | null>(null);
-  const [isSupported, setIsSupported] = useState(true);
-  const [debugInfo, setDebugInfo] = useState<string>('Initializing...');
-  const [loopCount, setLoopCount] = useState(0);
+  const [debugInfo, setDebugInfo] = useState<string>('Ready');
+  const [scanCount, setScanCount] = useState(0);
+  const [isReady, setIsReady] = useState(false);
 
-  // Check if BarcodeDetector is supported
+  // Initialize html5-qrcode only when modal is open and element exists
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      console.log('[BarcodeScanner] Window is undefined');
+    if (!isOpen) {
+      // Cleanup when modal closes
+      if (html5QrCodeRef.current) {
+        html5QrCodeRef.current.stop().catch(() => {});
+        html5QrCodeRef.current.clear();
+        html5QrCodeRef.current = null;
+        isInitializedRef.current = false;
+      }
+      setIsReady(false);
+      setIsScanning(false);
+      setHasPermission(null);
+      setDetectedBarcode(null);
+      lastScannedRef.current = null;
       return;
     }
 
-    console.log('[BarcodeScanner] Checking BarcodeDetector support...');
-    console.log('[BarcodeScanner] User Agent:', navigator.userAgent);
-    console.log('[BarcodeScanner] BarcodeDetector in window:', 'BarcodeDetector' in window);
-    console.log('[BarcodeScanner] typeof BarcodeDetector:', typeof (window as any).BarcodeDetector);
-
-    // Check if BarcodeDetector exists
-    if ('BarcodeDetector' in window && typeof (window as any).BarcodeDetector === 'function') {
-      console.log('[BarcodeScanner] ✅ BarcodeDetector API is supported!');
-      setIsSupported(true);
-      setShowManualInput(false); // Start with camera view
-
-      // Try to get supported formats (optional, for debugging)
-      try {
-        const detector = (window as any).BarcodeDetector;
-        if (typeof detector.getSupportedFormats === 'function') {
-          detector.getSupportedFormats().then((formats: string[]) => {
-            console.log('[BarcodeScanner] Supported formats:', formats);
-          }).catch((err: Error) => {
-            console.error('[BarcodeScanner] Error getting formats:', err);
-          });
+    // Wait for DOM to be ready
+    const timer = setTimeout(() => {
+      const element = document.getElementById('barcode-scanner-reader');
+      if (element && !isInitializedRef.current) {
+        console.log('[BarcodeScanner] Initializing html5-qrcode...');
+        try {
+          html5QrCodeRef.current = new Html5Qrcode('barcode-scanner-reader');
+          isInitializedRef.current = true;
+          setIsReady(true);
+          setDebugInfo('Ready to scan');
+        } catch (err) {
+          console.error('[BarcodeScanner] Failed to initialize:', err);
+          setError('Failed to initialize scanner');
+          setShowManualInput(true);
         }
-      } catch (err) {
-        console.error('[BarcodeScanner] Error checking formats:', err);
+      } else if (isInitializedRef.current) {
+        setIsReady(true);
       }
-    } else {
-      console.warn('[BarcodeScanner] ❌ BarcodeDetector API not supported in this browser');
-      setIsSupported(false);
-      setShowManualInput(true);
+    }, 100);
 
-      // Check if it's Chrome/Edge (which support it but need flag enabled)
-      const isChrome = /Chrome|Edg/.test(navigator.userAgent);
-      const isAndroid = /Android/.test(navigator.userAgent);
+    return () => clearTimeout(timer);
+  }, [isOpen]);
 
-      if (isChrome && !isAndroid) {
-        setError('Camera scanning requires enabling "Experimental Web Platform features" in chrome://flags. Use manual entry for now.');
-      } else {
-        setError('Camera scanning not supported in this browser. Please use manual entry.');
-      }
+  // Handle successful scan - immediately accept
+  const handleScanSuccess = useCallback((decodedText: string) => {
+    // Prevent duplicate scans
+    if (lastScannedRef.current === decodedText) {
+      return;
     }
+    
+    lastScannedRef.current = decodedText;
+    
+    console.log('[BarcodeScanner] Barcode detected:', decodedText);
+    setScanCount(prev => prev + 1);
+    setDebugInfo(`✅ Detected: ${decodedText}`);
+    setDetectedBarcode(decodedText);
+    
+    // Stop scanning immediately and call onScan
+    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+      html5QrCodeRef.current.stop().then(() => {
+        setIsScanning(false);
+        onScan(decodedText);
+      }).catch(() => {
+        setIsScanning(false);
+        onScan(decodedText);
+      });
+    } else {
+      setIsScanning(false);
+      onScan(decodedText);
+    }
+  }, [onScan]);
+
+  // Scan failure handler
+  const handleScanFailure = useCallback((error: string) => {
+    // Don't spam logs - this is normal when no barcode is visible
   }, []);
 
-  // Initialize camera and detector
+  // Start scanning
   const startScanning = useCallback(async () => {
     console.log('[BarcodeScanner] startScanning called');
-    console.log('[BarcodeScanner] isSupported:', isSupported);
-
-    if (!isSupported) {
-      console.log('[BarcodeScanner] Skipping camera - not supported');
+    
+    if (!html5QrCodeRef.current) {
+      console.error('[BarcodeScanner] html5QrCode not initialized');
+      setError('Scanner not ready. Please try again.');
       return;
     }
 
     try {
-      console.log('[BarcodeScanner] Requesting camera access...');
       setError(null);
       setHasPermission(null);
+      setIsScanning(true);
+      setDebugInfo('Requesting camera...');
+      lastScannedRef.current = null;
 
-      // Request camera with rear-facing preference
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      });
+      const config = {
+        fps: 5, // Slower FPS for better accuracy
+        qrbox: { width: 280, height: 200 }, // Wider box for barcodes
+        aspectRatio: 1.777778, // 16:9 aspect ratio
+        formatsToSupport: BARCODE_FORMATS,
+        useBarCodeDetectorIfSupported: true, // Use native detector if available
+        tryHarder: true // More thorough scanning
+      };
 
-      console.log('[BarcodeScanner] Camera access granted!');
-      console.log('[BarcodeScanner] Stream tracks:', stream.getTracks().map(t => ({ kind: t.kind, label: t.label })));
-
-      streamRef.current = stream;
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        console.log('[BarcodeScanner] Video element playing');
-      }
+      await html5QrCodeRef.current.start(
+        { facingMode: 'environment' },
+        config,
+        handleScanSuccess,
+        handleScanFailure
+      );
 
       setHasPermission(true);
-      setIsScanning(true);
-
-      // Initialize barcode detector
-      console.log('[BarcodeScanner] Initializing BarcodeDetector...');
-      detectorRef.current = new (window as any).BarcodeDetector({
-        formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code']
-      });
-      console.log('[BarcodeScanner] BarcodeDetector initialized successfully');
-
-      // Start detection loop
-      detectLoop();
+      setDebugInfo('Point camera at barcode');
+      console.log('[BarcodeScanner] Camera started successfully');
 
     } catch (err) {
       console.error('[BarcodeScanner] Camera error:', err);
-      console.error('[BarcodeScanner] Error type:', err instanceof DOMException ? err.name : typeof err);
-      console.error('[BarcodeScanner] Error message:', err instanceof Error ? err.message : String(err));
-
-      setHasPermission(false);
       setIsScanning(false);
+      setHasPermission(false);
 
-      if (err instanceof DOMException) {
-        if (err.name === 'NotAllowedError') {
-          setError('Camera permission denied. Please allow camera access.');
-        } else if (err.name === 'NotFoundError') {
-          setError('No camera found on this device.');
-        } else {
-          setError(`Camera error: ${err.message}`);
-        }
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      
+      if (errorMessage.includes('Permission')) {
+        setError('Camera permission denied. Please allow camera access.');
+      } else if (errorMessage.includes('not found')) {
+        setError('No camera found on this device.');
       } else {
         setError('Failed to access camera. Use manual entry.');
       }
 
       setShowManualInput(true);
     }
-  }, [isSupported]);
+  }, [handleScanSuccess, handleScanFailure]);
 
-  // Stop scanning and cleanup
-  const stopScanning = useCallback(() => {
+  // Stop scanning
+  const stopScanning = useCallback(async () => {
+    console.log('[BarcodeScanner] stopScanning called');
     setIsScanning(false);
-
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    }
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-
-    detectorRef.current = null;
-    scanResultsRef.current.clear();
     setDetectedBarcode(null);
+
+    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+      try {
+        await html5QrCodeRef.current.stop();
+        console.log('[BarcodeScanner] Scanner stopped');
+      } catch (err) {
+        console.error('[BarcodeScanner] Error stopping scanner:', err);
+      }
+    }
   }, []);
 
-  // Detection loop with stabilizer
-  const detectLoop = useCallback(async () => {
-    setLoopCount(prev => prev + 1);
-
-    if (!isScanning || !detectorRef.current || !videoRef.current) {
-      setDebugInfo('Loop stopped - not ready');
+  // Manual scan - pause and resume to force a fresh scan
+  const triggerManualScan = useCallback(async () => {
+    console.log('[BarcodeScanner] Manual scan triggered');
+    setDebugInfo('Scanning...');
+    
+    if (!html5QrCodeRef.current || !html5QrCodeRef.current.isScanning) {
+      // If not scanning, start scanning
+      await startScanning();
       return;
     }
-
-    try {
-      setDebugInfo('Scanning...');
-      const barcodes = await detectorRef.current.detect(videoRef.current);
-
-      if (barcodes.length > 0) {
-        const barcode = barcodes[0].rawValue;
-        const now = Date.now();
-
-        const existing = scanResultsRef.current.get(barcode);
-
-        if (existing) {
-          existing.count++;
-          existing.lastSeen = now;
-
-          setDebugInfo(`Found: ${barcode.slice(0, 8)}... (${existing.count}/3)`);
-
-          if (existing.count >= 3) {
-            // Confirmed detection
-            setDebugInfo(`✅ Confirmed: ${barcode}`);
-            setDetectedBarcode(barcode);
-            setIsScanning(false);
-            onScan(barcode);
-            return; // Stop loop
-          }
-        } else {
-          setDebugInfo(`Detected: ${barcode.slice(0, 8)}... (1/3)`);
-          scanResultsRef.current.set(barcode, {
-            barcode,
-            count: 1,
-            lastSeen: now
-          });
-        }
-
-        // Clean up old detections (>500ms)
-        scanResultsRef.current.forEach((result, key) => {
-          if (now - result.lastSeen > 500) {
-            scanResultsRef.current.delete(key);
-          }
-        });
-      } else {
-        setDebugInfo('No barcode in frame');
+    
+    // The library is continuously scanning - just update UI to show we're trying
+    // The next successful detection will trigger handleScanSuccess
+    setScanCount(prev => prev + 1);
+    
+    // Flash the UI to indicate scan attempt
+    setDebugInfo('Looking for barcode...');
+    
+    setTimeout(() => {
+      if (isScanning) {
+        setDebugInfo('Point camera at barcode');
       }
-    } catch (err) {
-      setDebugInfo(`Error: ${err instanceof Error ? err.message : 'Unknown'}`);
-    }
+    }, 1000);
+  }, [isScanning, startScanning]);
 
-    // Continue loop
-    if (isScanning) {
-      setTimeout(() => {
-        detectLoop();
-      }, 100);
-    }
-  }, [isScanning, onScan]);
-
-  // Start/stop based on isOpen
+  // Auto-start scanning when ready
   useEffect(() => {
-    console.log('[BarcodeScanner] Modal state changed - isOpen:', isOpen);
-
-    if (isOpen) {
-      console.log('[BarcodeScanner] Opening scanner modal');
-      if (isSupported) {
-        console.log('[BarcodeScanner] Starting camera...');
-        startScanning();
-      } else {
-        console.log('[BarcodeScanner] Camera not supported, showing manual input');
-      }
-    } else {
-      console.log('[BarcodeScanner] Closing scanner modal');
-      stopScanning();
+    if (isReady && !showManualInput && !isScanning && hasPermission === null) {
+      startScanning();
     }
-
-    return () => {
-      console.log('[BarcodeScanner] Cleanup on unmount');
-      stopScanning();
-    };
-  }, [isOpen, isSupported, startScanning, stopScanning]);
+  }, [isReady, showManualInput, isScanning, hasPermission, startScanning]);
 
   // Handle manual submit
   const handleManualSubmit = (e: React.FormEvent) => {
@@ -304,69 +248,87 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
         )}
 
         {/* Camera View */}
-        {(() => {
-          console.log('[BarcodeScanner] Render check - isSupported:', isSupported, 'showManualInput:', showManualInput, 'hasPermission:', hasPermission);
-          return null;
-        })()}
-        {isSupported && !showManualInput && (
+        {!showManualInput && (
           <div className="flex-1 relative overflow-hidden bg-black min-h-[400px]">
-            {/* Video */}
-            <video
-              ref={videoRef}
-              className="absolute inset-0 w-full h-full object-cover"
-              playsInline
-              muted
-              autoPlay
-            />
+            {/* Scanner container */}
+            <div id="barcode-scanner-reader" className="w-full h-full" />
+
+            {/* Manual scan button */}
+            {isScanning && (
+              <button
+                onClick={triggerManualScan}
+                className="absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-green-500 hover:bg-green-400 text-black py-3 px-6 rounded-full font-bold flex items-center gap-2 transition-all shadow-lg shadow-green-500/30 z-10 animate-pulse"
+              >
+                <Scan size={20} />
+                Tap to Scan
+              </button>
+            )}
+
+            {/* Start button if not scanning */}
+            {!isScanning && hasPermission !== null && isReady && (
+              <button
+                onClick={startScanning}
+                className="absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-green-500 hover:bg-green-400 text-black py-3 px-6 rounded-full font-bold flex items-center gap-2 transition-all shadow-lg shadow-green-500/30 z-10"
+              >
+                <Camera size={20} />
+                Start Camera
+              </button>
+            )}
 
             {/* Scanning Overlay */}
-            <div className="absolute inset-0 pointer-events-none">
-              {/* Darkened edges */}
-              <div className="absolute inset-0 bg-black/40" />
+            {isScanning && (
+              <div className="absolute inset-0 pointer-events-none">
+                {/* Darkened edges */}
+                <div className="absolute inset-0 bg-black/30" />
 
-              {/* Clear center area */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-48">
-                <div className="w-full h-full bg-transparent relative">
-                  {/* Corner brackets */}
-                  <div className="absolute top-0 left-0 w-8 h-8 border-l-4 border-t-4 border-green-500" />
-                  <div className="absolute top-0 right-0 w-8 h-8 border-r-4 border-t-4 border-green-500" />
-                  <div className="absolute bottom-0 left-0 w-8 h-8 border-l-4 border-b-4 border-green-500" />
-                  <div className="absolute bottom-0 right-0 w-8 h-8 border-r-4 border-b-4 border-green-500" />
+                {/* Clear center area - wider for barcodes */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-32">
+                  <div className="w-full h-full bg-transparent relative">
+                    {/* Corner brackets */}
+                    <div className="absolute top-0 left-0 w-8 h-8 border-l-4 border-t-4 border-green-500" />
+                    <div className="absolute top-0 right-0 w-8 h-8 border-r-4 border-t-4 border-green-500" />
+                    <div className="absolute bottom-0 left-0 w-8 h-8 border-l-4 border-b-4 border-green-500" />
+                    <div className="absolute bottom-0 right-0 w-8 h-8 border-r-4 border-b-4 border-green-500" />
 
-                  {/* Pulsing scan line */}
-                  {isScanning && (
-                    <div className="absolute top-0 left-0 right-0 h-0.5 bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.8)] animate-scan" />
-                  )}
+                    {/* Horizontal scan line */}
+                    <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.8)] animate-pulse" />
 
-                  {/* Detected indicator */}
-                  {detectedBarcode && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-green-500/20">
-                      <div className="bg-green-500 text-black px-4 py-2 rounded-lg font-bold">
-                        Detected!
+                    {/* Detected indicator */}
+                    {detectedBarcode && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-green-500/20">
+                        <div className="bg-green-500 text-black px-4 py-2 rounded-lg font-bold">
+                          Detected!
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                </div>
+
+                {/* Instructions */}
+                <div className="absolute bottom-36 left-0 right-0 text-center px-4">
+                  <p className="text-white/80 text-sm font-medium">
+                    Align barcode horizontally within the frame
+                  </p>
+                  <p className="text-white/60 text-xs mt-1">
+                    Hold steady - barcodes need to be level
+                  </p>
+                </div>
+
+                {/* Debug Info */}
+                <div className="absolute top-4 left-4 right-4 bg-black/80 rounded-lg p-3 text-xs font-mono">
+                  <p className="text-green-500">Status: {debugInfo}</p>
+                  <p className="text-zinc-500">Attempts: {scanCount}</p>
                 </div>
               </div>
-
-              {/* Instructions */}
-              <div className="absolute bottom-20 left-0 right-0 text-center">
-                <p className="text-white/80 text-sm font-medium">
-                  Hold barcode within the frame
-                </p>
-              </div>
-
-              {/* Debug Info */}
-              <div className="absolute top-4 left-4 right-4 bg-black/80 rounded-lg p-3 text-xs font-mono">
-                <p className="text-green-500">Status: {debugInfo}</p>
-                <p className="text-zinc-500">Scans: {loopCount}</p>
-              </div>
-            </div>
+            )}
 
             {/* Loading state */}
-            {hasPermission === null && (
+            {(!isReady || hasPermission === null) && !isScanning && (
               <div className="absolute inset-0 flex items-center justify-center bg-black">
-                <Loader2 className="animate-spin text-green-500" size={48} />
+                <div className="text-center">
+                  <Loader2 className="animate-spin text-green-500 mx-auto mb-4" size={48} />
+                  <p className="text-white/80">Starting camera...</p>
+                </div>
               </div>
             )}
           </div>
@@ -407,31 +369,29 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
 
         {/* Bottom Controls */}
         <div className="p-4 bg-zinc-900 space-y-3 shrink-0">
-          {isSupported && (
-            <button
-              onClick={() => {
-                setShowManualInput(!showManualInput);
-                if (!showManualInput) {
-                  stopScanning();
-                } else {
-                  startScanning();
-                }
-              }}
-              className="w-full py-3 bg-zinc-800 rounded-xl font-medium text-sm hover:bg-zinc-700 transition-colors flex items-center justify-center gap-2"
-            >
-              {showManualInput ? (
-                <>
-                  <Camera size={18} />
-                  Use Camera Scanner
-                </>
-              ) : (
-                <>
-                  <Keyboard size={18} />
-                  Type Barcode Manually
-                </>
-              )}
-            </button>
-          )}
+          <button
+            onClick={() => {
+              setShowManualInput(!showManualInput);
+              if (!showManualInput) {
+                stopScanning();
+              } else {
+                startScanning();
+              }
+            }}
+            className="w-full py-3 bg-zinc-800 rounded-xl font-medium text-sm hover:bg-zinc-700 transition-colors flex items-center justify-center gap-2"
+          >
+            {showManualInput ? (
+              <>
+                <Camera size={18} />
+                Use Camera Scanner
+              </>
+            ) : (
+              <>
+                <Keyboard size={18} />
+                Type Barcode Manually
+              </>
+            )}
+          </button>
 
           <button
             onClick={onClose}
@@ -440,19 +400,6 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
             Cancel
           </button>
         </div>
-
-        {/* CSS for scan animation */}
-        <style>{`
-          @keyframes scan {
-            0% { top: 0; opacity: 0; }
-            10% { opacity: 1; }
-            90% { opacity: 1; }
-            100% { top: 100%; opacity: 0; }
-          }
-          .animate-scan {
-            animation: scan 2s linear infinite;
-          }
-        `}</style>
       </div>
     </div>
   );
