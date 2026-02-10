@@ -12,7 +12,7 @@ interface UseOpenFoodFactsReturn {
   isLoading: boolean;
   error: string | null;
   errorType: 'not_found' | 'no_nutrition_data' | 'api_error' | null;
-  lookupBarcode: (barcode: string) => Promise<boolean>;
+  lookupBarcode: (barcode: string) => Promise<{ success: boolean; product: OpenFoodFactsProduct | null }>;
   resetCache: () => void;
   clearError: () => void;
 }
@@ -124,7 +124,7 @@ export const useOpenFoodFacts = (): UseOpenFoodFactsReturn => {
   // Use ref for cache to avoid re-renders
   const cacheRef = useRef<Map<string, CacheEntry>>(getCache());
 
-  const lookupBarcode = useCallback(async (barcode: string): Promise<boolean> => {
+  const lookupBarcode = useCallback(async (barcode: string): Promise<{ success: boolean; product: OpenFoodFactsProduct | null }> => {
     setIsLoading(true);
     setError(null);
     setErrorType(null);
@@ -138,7 +138,7 @@ export const useOpenFoodFacts = (): UseOpenFoodFactsReturn => {
         setProduct(cached.data);
         addToRecentScans(cleanBarcode);
         setIsLoading(false);
-        return true;
+        return { success: true, product: cached.data };
       }
       
       // Fetch from API
@@ -150,7 +150,7 @@ export const useOpenFoodFacts = (): UseOpenFoodFactsReturn => {
         setErrorType(result.error || 'api_error');
         setProduct(null);
         setIsLoading(false);
-        return false;
+        return { success: false, product: null };
       }
       
       if (result.product) {
@@ -167,14 +167,14 @@ export const useOpenFoodFacts = (): UseOpenFoodFactsReturn => {
         
         setProduct(result.product);
         setIsLoading(false);
-        return true;
+        return { success: true, product: result.product };
       }
       
       setError('No product data received');
       setErrorType('api_error');
       setProduct(null);
       setIsLoading(false);
-      return false;
+      return { success: false, product: null };
       
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -182,7 +182,7 @@ export const useOpenFoodFacts = (): UseOpenFoodFactsReturn => {
       setErrorType('api_error');
       setProduct(null);
       setIsLoading(false);
-      return false;
+      return { success: false, product: null };
     }
   }, []);
 

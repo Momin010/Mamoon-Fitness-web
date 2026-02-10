@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, QrCode, Camera, Keyboard, AlertCircle, History, Loader2 } from 'lucide-react';
+import { ChevronLeft, QrCode, Camera, Keyboard, AlertCircle, History } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useOpenFoodFacts, getRecentScans, getCachedProduct } from '../hooks/useOpenFoodFacts';
 import BarcodeScanner from '../components/BarcodeScanner';
@@ -33,13 +33,17 @@ const AddMealPage: React.FC = () => {
     setRecentScans(getRecentScans());
   }, []);
 
-  // Handle barcode scan
+  // Handle barcode scan - don't close scanner, let it show loading state
   const handleBarcodeScan = async (barcode: string) => {
-    setShowScanner(false);
-    const success = await lookupBarcode(barcode);
-    if (success && product) {
-      setScannedProduct(product);
+    // Don't close scanner - keep it open to show loading state
+    const result = await lookupBarcode(barcode);
+    if (result.success && result.product) {
+      setScannedProduct(result.product);
+      setShowScanner(false); // Only close after successful lookup
       setShowPreview(true);
+    } else {
+      // On error, keep scanner open so user can try again
+      // The error toast will show from the hook
     }
   };
 
@@ -75,9 +79,9 @@ const AddMealPage: React.FC = () => {
       setScannedProduct(cached);
       setShowPreview(true);
     } else {
-      const success = await lookupBarcode(barcode);
-      if (success && product) {
-        setScannedProduct(product);
+      const result = await lookupBarcode(barcode);
+      if (result.success && result.product) {
+        setScannedProduct(result.product);
         setShowPreview(true);
       }
     }
@@ -386,6 +390,7 @@ const AddMealPage: React.FC = () => {
         isOpen={showScanner}
         onClose={() => setShowScanner(false)}
         onScan={handleBarcodeScan}
+        isLookupLoading={isLoading}
       />
 
       {/* Product Preview Modal */}
@@ -398,16 +403,6 @@ const AddMealPage: React.FC = () => {
             setScannedProduct(null);
           }}
         />
-      )}
-
-      {/* Loading Overlay */}
-      {isLoading && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center">
-          <div className="text-center">
-            <Loader2 className="animate-spin text-green-500 mx-auto mb-4" size={48} />
-            <p className="text-zinc-400">Looking up product...</p>
-          </div>
-        </div>
       )}
 
       {/* Error Toast */}

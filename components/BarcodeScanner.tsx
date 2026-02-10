@@ -6,9 +6,10 @@ interface BarcodeScannerProps {
   isOpen: boolean;
   onClose: () => void;
   onScan: (barcode: string) => void;
+  isLookupLoading?: boolean; // Loading state from parent during product lookup
 }
 
-const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan }): React.ReactElement | null => {
+const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan, isLookupLoading = false }): React.ReactElement | null => {
   const scannerRef = useRef<HTMLDivElement>(null);
   const isInitializedRef = useRef<boolean>(false);
   const lastScannedRef = useRef<string | null>(null);
@@ -238,12 +239,24 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
               </div>
             )}
 
-            {/* Loading state */}
-            {!isScanning && !error && (
+            {/* Loading state - starting camera */}
+            {!isScanning && !error && !detectedBarcode && (
               <div className="absolute inset-0 flex items-center justify-center bg-black">
                 <div className="text-center">
                   <Loader2 className="animate-spin text-green-500 mx-auto mb-4" size={48} />
                   <p className="text-white/80">Starting camera...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Loading state - product lookup */}
+            {isLookupLoading && detectedBarcode && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
+                <div className="text-center">
+                  <Loader2 className="animate-spin text-green-500 mx-auto mb-4" size={48} />
+                  <p className="text-white font-bold text-lg mb-2">✓ Barcode Found!</p>
+                  <p className="text-zinc-400">{detectedBarcode}</p>
+                  <p className="text-zinc-500 text-sm mt-4">Looking up product...</p>
                 </div>
               </div>
             )}
