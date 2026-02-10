@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Camera, AlertCircle, Keyboard, Loader2, Scan } from 'lucide-react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { X, Camera, AlertCircle, Keyboard, Loader2, Scan, Flashlight } from 'lucide-react';
+import { Html5Qrcode, Html5QrcodeScanType } from 'html5-qrcode';
 
 interface BarcodeScannerProps {
   isOpen: boolean;
@@ -8,21 +8,11 @@ interface BarcodeScannerProps {
   onScan: (barcode: string) => void;
 }
 
-// Barcode formats supported by html5-qrcode
-const BARCODE_FORMATS = [
-  'EAN_13',
-  'EAN_8',
-  'UPC_A',
-  'UPC_E',
-  'CODE_128',
-  'CODE_39',
-  'QR_CODE'
-];
-
 const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan }): React.ReactElement | null => {
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const isInitializedRef = useRef<boolean>(false);
   const lastScannedRef = useRef<string | null>(null);
+  const scanAttemptsRef = useRef<number>(0);
 
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -49,6 +39,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
       setHasPermission(null);
       setDetectedBarcode(null);
       lastScannedRef.current = null;
+      scanAttemptsRef.current = 0;
       return;
     }
 
@@ -58,10 +49,34 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
       if (element && !isInitializedRef.current) {
         console.log('[BarcodeScanner] Initializing html5-qrcode...');
         try {
-          html5QrCodeRef.current = new Html5Qrcode('barcode-scanner-reader');
+          // Configure for barcode scanning specifically
+          const config = {
+            fps: 10,
+            qrbox: { width: 300, height: 150 }, // Wide rectangle for barcodes
+            supportedScanTypes: [
+              Html5QrcodeScanType.SCAN_TYPE_CAMERA
+            ],
+            formatsToSupport: [
+              0,  // EAN_13
+              1,  // EAN_8
+              2,  // CODE_128
+              3,  // CODE_39
+              4,  // UPC_A
+              5,  // UPC_E
+              6,  // QR_CODE
+            ],
+            useBarCodeDetectorIfSupported: true,
+            tryHarder: true,
+            experimentalFeatures: {
+              newBarcodeDetector: true
+            }
+          };
+          
+          html5QrCodeRef.current = new Html5Qrcode('barcode-scanner-reader', { verbose: true });
           isInitializedRef.current = true;
           setIsReady(true);
           setDebugInfo('Ready to scan');
+          console.log('[BarcodeScanner] Initialized successfully');
         } catch (err) {
           console.error('[BarcodeScanner] Failed to initialize:', err);
           setError('Failed to initialize scanner');
@@ -76,25 +91,29 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
   }, [isOpen]);
 
   // Handle successful scan - immediately accept
-  const handleScanSuccess = useCallback((decodedText: string) => {
+  const handleScanSuccess = useCallback((decodedText: string, decodedResult: any) => {
+    console.log('[BarcodeScanner] SUCCESS! Barcode:', decodedText, 'Result:', decodedResult);
+    
     // Prevent duplicate scans
     if (lastScannedRef.current === decodedText) {
+      console.log('[BarcodeScanner] Duplicate scan, ignoring');
       return;
     }
     
     lastScannedRef.current = decodedText;
     
-    console.log('[BarcodeScanner] Barcode detected:', decodedText);
     setScanCount(prev => prev + 1);
-    setDebugInfo(`✅ Detected: ${decodedText}`);
+    setDebugInfo(`✅ Found: ${decodedText}`);
     setDetectedBarcode(decodedText);
     
     // Stop scanning immediately and call onScan
     if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
       html5QrCodeRef.current.stop().then(() => {
         setIsScanning(false);
+        console.log('[BarcodeScanner] Calling onScan with:', decodedText);
         onScan(decodedText);
-      }).catch(() => {
+      }).catch((err) => {
+        console.error('[BarcodeScanner] Error stopping:', err);
         setIsScanning(false);
         onScan(decodedText);
       });
@@ -104,9 +123,14 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
     }
   }, [onScan]);
 
-  // Scan failure handler
+  // Scan failure handler - log for debugging
   const handleScanFailure = useCallback((error: string) => {
-    // Don't spam logs - this is normal when no barcode is visible
+    scanAttemptsRef.current++;
+    // Log every 10 failures to avoid spam
+    if (scanAttemptsRef.current % 10 === 0) {
+      console.log('[BarcodeScanner] Scan attempt', scanAttemptsRef.current, '- No barcode detected');
+      setDebugInfo(`Scanning... (${scanAttemptsRef.current} attempts)`);
+    }
   }, []);
 
   // Start scanning
@@ -125,15 +149,26 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
       setIsScanning(true);
       setDebugInfo('Requesting camera...');
       lastScannedRef.current = null;
+      scanAttemptsRef.current = 0;
 
+      // Simple config optimized for barcodes
       const config = {
-        fps: 5, // Slower FPS for better accuracy
-        qrbox: { width: 280, height: 200 }, // Wider box for barcodes
-        aspectRatio: 1.777778, // 16:9 aspect ratio
-        formatsToSupport: BARCODE_FORMATS,
-        useBarCodeDetectorIfSupported: true, // Use native detector if available
-        tryHarder: true // More thorough scanning
+        fps: 5,
+        qrbox: { width: 280, height: 150 }, // Wide for barcodes
+        aspectRatio: 1.777778,
+        formatsToSupport: [
+          0,  // EAN_13
+          1,  // EAN_8  
+          2,  // CODE_128
+          3,  // CODE_39
+          4,  // UPC_A
+          5,  // UPC_E
+        ],
+        useBarCodeDetectorIfSupported: true,
+        tryHarder: true
       };
+
+      console.log('[BarcodeScanner] Starting camera with config:', config);
 
       await html5QrCodeRef.current.start(
         { facingMode: 'environment' },
@@ -153,12 +188,12 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
 
       const errorMessage = err instanceof Error ? err.message : String(err);
       
-      if (errorMessage.includes('Permission')) {
-        setError('Camera permission denied. Please allow camera access.');
-      } else if (errorMessage.includes('not found')) {
+      if (errorMessage.includes('Permission') || errorMessage.includes('NotAllowed')) {
+        setError('Camera permission denied. Please allow camera access and refresh.');
+      } else if (errorMessage.includes('not found') || errorMessage.includes('NotFoundError')) {
         setError('No camera found on this device.');
       } else {
-        setError('Failed to access camera. Use manual entry.');
+        setError(`Camera error: ${errorMessage}. Use manual entry.`);
       }
 
       setShowManualInput(true);
@@ -181,30 +216,20 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
     }
   }, []);
 
-  // Manual scan - pause and resume to force a fresh scan
-  const triggerManualScan = useCallback(async () => {
-    console.log('[BarcodeScanner] Manual scan triggered');
-    setDebugInfo('Scanning...');
-    
-    if (!html5QrCodeRef.current || !html5QrCodeRef.current.isScanning) {
-      // If not scanning, start scanning
-      await startScanning();
-      return;
-    }
-    
-    // The library is continuously scanning - just update UI to show we're trying
-    // The next successful detection will trigger handleScanSuccess
+  // Manual scan - just visual feedback, library is continuously scanning
+  const triggerManualScan = useCallback(() => {
+    console.log('[BarcodeScanner] Manual scan button pressed');
+    scanAttemptsRef.current = 0;
     setScanCount(prev => prev + 1);
+    setDebugInfo('Hold steady... looking for barcode');
     
-    // Flash the UI to indicate scan attempt
-    setDebugInfo('Looking for barcode...');
-    
+    // Visual feedback
     setTimeout(() => {
       if (isScanning) {
-        setDebugInfo('Point camera at barcode');
+        setDebugInfo('Make sure barcode is level and well-lit');
       }
-    }, 1000);
-  }, [isScanning, startScanning]);
+    }, 1500);
+  }, [isScanning]);
 
   // Auto-start scanning when ready
   useEffect(() => {
@@ -217,6 +242,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (manualBarcode.trim().length >= 8) {
+      console.log('[BarcodeScanner] Manual entry:', manualBarcode.trim());
       onScan(manualBarcode.trim());
     }
   };
@@ -257,10 +283,10 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
             {isScanning && (
               <button
                 onClick={triggerManualScan}
-                className="absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-green-500 hover:bg-green-400 text-black py-3 px-6 rounded-full font-bold flex items-center gap-2 transition-all shadow-lg shadow-green-500/30 z-10 animate-pulse"
+                className="absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-green-500 hover:bg-green-400 active:bg-green-300 text-black py-3 px-8 rounded-full font-bold flex items-center gap-2 transition-all shadow-lg shadow-green-500/30 z-10"
               >
-                <Scan size={20} />
-                Tap to Scan
+                <Scan size={20} className="animate-pulse" />
+                Scanning...
               </button>
             )}
 
@@ -279,25 +305,25 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
             {isScanning && (
               <div className="absolute inset-0 pointer-events-none">
                 {/* Darkened edges */}
-                <div className="absolute inset-0 bg-black/30" />
+                <div className="absolute inset-0 bg-black/20" />
 
-                {/* Clear center area - wider for barcodes */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-32">
-                  <div className="w-full h-full bg-transparent relative">
+                {/* Clear center area - wide rectangle for barcodes */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-28">
+                  <div className="w-full h-full bg-transparent relative border-2 border-green-500/50 rounded-lg">
                     {/* Corner brackets */}
-                    <div className="absolute top-0 left-0 w-8 h-8 border-l-4 border-t-4 border-green-500" />
-                    <div className="absolute top-0 right-0 w-8 h-8 border-r-4 border-t-4 border-green-500" />
-                    <div className="absolute bottom-0 left-0 w-8 h-8 border-l-4 border-b-4 border-green-500" />
-                    <div className="absolute bottom-0 right-0 w-8 h-8 border-r-4 border-b-4 border-green-500" />
+                    <div className="absolute top-0 left-0 w-6 h-6 border-l-4 border-t-4 border-green-500 rounded-tl-lg" />
+                    <div className="absolute top-0 right-0 w-6 h-6 border-r-4 border-t-4 border-green-500 rounded-tr-lg" />
+                    <div className="absolute bottom-0 left-0 w-6 h-6 border-l-4 border-b-4 border-green-500 rounded-bl-lg" />
+                    <div className="absolute bottom-0 right-0 w-6 h-6 border-r-4 border-b-4 border-green-500 rounded-br-lg" />
 
-                    {/* Horizontal scan line */}
-                    <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.8)] animate-pulse" />
+                    {/* Center line */}
+                    <div className="absolute top-1/2 left-4 right-4 h-0.5 bg-green-500/50" />
 
                     {/* Detected indicator */}
                     {detectedBarcode && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-green-500/20">
-                        <div className="bg-green-500 text-black px-4 py-2 rounded-lg font-bold">
-                          Detected!
+                      <div className="absolute inset-0 flex items-center justify-center bg-green-500/30 rounded-lg">
+                        <div className="bg-green-500 text-black px-4 py-2 rounded-lg font-bold text-lg">
+                          ✓ Detected!
                         </div>
                       </div>
                     )}
@@ -306,18 +332,18 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ isOpen, onClose, onScan
 
                 {/* Instructions */}
                 <div className="absolute bottom-36 left-0 right-0 text-center px-4">
-                  <p className="text-white/80 text-sm font-medium">
-                    Align barcode horizontally within the frame
+                  <p className="text-white text-sm font-bold mb-1">
+                    Align barcode horizontally
                   </p>
-                  <p className="text-white/60 text-xs mt-1">
-                    Hold steady - barcodes need to be level
+                  <p className="text-white/70 text-xs">
+                    Hold phone steady • Good lighting helps
                   </p>
                 </div>
 
                 {/* Debug Info */}
                 <div className="absolute top-4 left-4 right-4 bg-black/80 rounded-lg p-3 text-xs font-mono">
-                  <p className="text-green-500">Status: {debugInfo}</p>
-                  <p className="text-zinc-500">Attempts: {scanCount}</p>
+                  <p className="text-green-400">{debugInfo}</p>
+                  <p className="text-zinc-500 text-[10px]">Attempts: {scanAttemptsRef.current}</p>
                 </div>
               </div>
             )}
