@@ -83,8 +83,8 @@ export const RestTimer: React.FC<RestTimerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-6">
-      <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-sm">
+    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4 sm:p-6">
+      <div className="bg-zinc-900 rounded-2xl p-4 sm:p-6 w-full max-w-sm">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold">Rest Timer</h2>
           <button 

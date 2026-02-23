@@ -10,7 +10,7 @@ import {
 
 const BottomNav: React.FC = () => {
   return (
-    <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-zinc-900/80 backdrop-blur-2xl border border-white/10 flex justify-between items-center py-2 px-3 rounded-3xl z-50 shadow-2xl">
+    <nav className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-zinc-900/80 backdrop-blur-2xl border border-white/10 flex justify-between items-center py-2 px-2 sm:px-3 rounded-2xl sm:rounded-3xl z-50 shadow-2xl">
       <NavLink
         to="/workout"
         className={({ isActive }) => `flex flex-col items-center gap-1 p-3 rounded-2xl transition-all duration-300 ${isActive ? 'text-green-500 bg-green-500/10' : 'text-zinc-500 hover:text-white'}`}

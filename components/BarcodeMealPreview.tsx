@@ -16,12 +16,21 @@ interface BarcodeMealPreviewProps {
   onCancel: () => void;
 }
 
+// Helper to detect if product is a drink
+const isDrink = (name: string): boolean => {
+  const drinkKeywords = ['drink', 'beverage', 'soda', 'cola', 'pepsi', 'coke', 'red bull', 'monster', 'energy', 'coffee', 'tea', 'juice', 'smoothie', 'shake', 'protein shake', 'milk', 'water', 'beer', 'wine', 'alcohol', 'spirit', 'liquor', 'cocktail', 'ml', 'liter', 'can', 'bottle'];
+  const lowerName = name.toLowerCase();
+  return drinkKeywords.some(keyword => lowerName.includes(keyword));
+};
+
+
 const BarcodeMealPreview: React.FC<BarcodeMealPreviewProps> = ({ 
   product, 
   onConfirm, 
   onCancel 
 }) => {
-  const [servingSize, setServingSize] = useState(product.servingSize);
+  const productIsDrink = isDrink(product.name);
+  const [servingSize, setServingSize] = useState<number>(product.servingSize);
   
   // Calculate scaled macros
   const scaledMacros = useMemo(() => {
@@ -31,13 +40,14 @@ const BarcodeMealPreview: React.FC<BarcodeMealPreviewProps> = ({
   // Adjust serving size
   const adjustServing = (delta: number) => {
     setServingSize(prev => {
-      const newSize = Math.max(1, Math.round(prev + delta));
+      const newSize = Math.max(1, Math.round((prev + delta) * 10) / 10);
       return newSize;
     });
   };
 
-  // Quick preset buttons
-  const servingPresets = [30, 50, 100, 150, 200, 250];
+  // Quick preset buttons - different for drinks vs food
+  const servingPresets = productIsDrink ? [250, 330, 500, 1000] : [30, 50, 100, 150, 200, 250];
+
 
   // Handle confirm
   const handleConfirm = () => {
@@ -53,9 +63,10 @@ const BarcodeMealPreview: React.FC<BarcodeMealPreviewProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+    <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-md h-full max-h-[90vh] bg-zinc-900 rounded-2xl flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 bg-zinc-900">
+      <div className="flex items-center justify-between p-4 bg-zinc-900 shrink-0">
         <h2 className="text-lg font-bold">Product Found</h2>
         <button 
           onClick={onCancel}
@@ -111,9 +122,10 @@ const BarcodeMealPreview: React.FC<BarcodeMealPreviewProps> = ({
           <div className="flex items-center justify-between">
             <h4 className="font-bold">Serving Size</h4>
             <span className="text-2xl font-black text-green-500">
-              {servingSize}g
+              {servingSize}{productIsDrink ? 'ml' : 'g'}
             </span>
           </div>
+
 
           {/* Adjustment Controls */}
           <div className="flex items-center justify-center gap-4">
@@ -127,11 +139,13 @@ const BarcodeMealPreview: React.FC<BarcodeMealPreviewProps> = ({
             <div className="flex-1 max-w-[120px]">
               <input
                 type="number"
+                step="0.1"
                 value={servingSize}
-                onChange={(e) => setServingSize(Math.max(1, parseInt(e.target.value) || 0))}
+                onChange={(e) => setServingSize(Math.max(0.1, parseFloat(e.target.value) || 0))}
                 className="w-full bg-zinc-800 rounded-xl px-3 py-2 text-center font-bold text-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
+
             
             <button
               onClick={() => adjustServing(10)}
@@ -153,16 +167,17 @@ const BarcodeMealPreview: React.FC<BarcodeMealPreviewProps> = ({
                     : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
                 }`}
               >
-                {preset}g
+                {preset}{productIsDrink ? 'ml' : 'g'}
               </button>
             ))}
           </div>
 
           {product.servingSize !== 100 && (
             <p className="text-xs text-zinc-500 text-center">
-              Original serving: {product.servingSize}g
+              Original serving: {product.servingSize}{productIsDrink ? 'ml' : 'g'}
             </p>
           )}
+
         </div>
 
         {/* Macros Display */}
@@ -221,24 +236,26 @@ const BarcodeMealPreview: React.FC<BarcodeMealPreviewProps> = ({
             </div>
           </div>
 
-          {/* Per 100g Reference */}
+          {/* Per 100g/ml Reference */}
           <div className="pt-2 border-t border-zinc-800">
             <p className="text-xs text-zinc-600 text-center">
-              Per 100g: {product.calories} kcal | P: {product.protein}g | C: {product.carbs}g | F: {product.fat}g
+              Per 100{productIsDrink ? 'ml' : 'g'}: {product.calories} kcal | P: {product.protein}g | C: {product.carbs}g | F: {product.fat}g
             </p>
           </div>
+
         </div>
       </div>
 
       {/* Bottom Action */}
-      <div className="p-4 bg-zinc-900 border-t border-zinc-800">
+      <div className="p-4 bg-zinc-900 border-t border-zinc-800 shrink-0">
         <button
           onClick={handleConfirm}
-          className="w-full bg-green-500 text-black py-4 rounded-xl font-bold uppercase tracking-widest hover:bg-green-400 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          className="w-full bg-green-500 text-black py-3 sm:py-4 rounded-xl font-bold uppercase tracking-widest hover:bg-green-400 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
         >
-          <Check size={20} />
+          <Check size={18} className="sm:w-5 sm:h-5" />
           Add to Meal (+50 XP)
         </button>
+      </div>
       </div>
     </div>
   );

@@ -14,4 +14,5 @@ export { default as ErrorBoundary } from './ErrorBoundary';
 export { default as ExerciseTemplates } from './ExerciseTemplates';
 export { default as ImageUpload } from './ImageUpload';
 export { default as RestTimer } from './RestTimer';
+export { default as ScrollbarStyles } from './ScrollbarStyles';
 export { default as ThemeToggle } from './ThemeToggle';

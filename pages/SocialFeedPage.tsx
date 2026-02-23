@@ -473,20 +473,20 @@ const SocialFeedPage: React.FC = () => {
         )}
       </div>
 
-      {/* Floating Action Button - Responsive & Centered within Frame */}
-      <div className="fixed bottom-24 left-1/2 -translate-x-1/2 w-full max-w-md pointer-events-none z-20 px-6">
+      {/* Floating Action Button - Fixed position within viewport */}
+      <div className="fixed bottom-24 right-4 sm:right-6 z-20">
         <button
           onClick={() => setIsPosting(true)}
-          className="float-right w-14 h-14 bg-green-500 text-black rounded-2xl flex items-center justify-center shadow-2xl shadow-green-500/20 hover:scale-110 active:scale-95 transition-all pointer-events-auto border-2 border-black"
+          className="w-12 h-12 sm:w-14 sm:h-14 bg-green-500 text-black rounded-2xl flex items-center justify-center shadow-2xl shadow-green-500/20 hover:scale-110 active:scale-95 transition-all border-2 border-black"
         >
-          <Plus size={28} strokeWidth={3} />
+          <Plus size={24} className="sm:w-7 sm:h-7" strokeWidth={3} />
         </button>
       </div>
 
       {/* Create Post Modal */}
       {isPosting && (
-        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-50 flex items-center justify-center p-6">
-          <div className="w-full max-w-sm bg-zinc-900 rounded-[2.5rem] p-8 border border-zinc-800 shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6">
+          <div className="w-full max-w-sm bg-zinc-900 rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 border border-zinc-800 shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center mb-8">
               <h2 className="text-2xl font-black uppercase tracking-tighter italic">Ignite Post</h2>
               <button

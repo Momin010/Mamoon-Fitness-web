@@ -10,86 +10,8 @@ interface Template {
   exercises: Omit<Exercise, 'id' | 'completedSets'>[];
 }
 
-const BUILT_IN_TEMPLATES: Template[] = [
-  {
-    id: 'push-day',
-    name: 'Push Day',
-    description: 'Chest, shoulders, and triceps',
-    exercises: [
-      { name: 'Bench Press', sets: 4, reps: 8, weight: 135 },
-      { name: 'Overhead Press', sets: 3, reps: 10, weight: 95 },
-      { name: 'Incline Dumbbell Press', sets: 3, reps: 10 },
-      { name: 'Lateral Raises', sets: 3, reps: 15 },
-      { name: 'Tricep Extensions', sets: 3, reps: 12 },
-      { name: 'Cable Flys', sets: 3, reps: 12 }
-    ]
-  },
-  {
-    id: 'pull-day',
-    name: 'Pull Day',
-    description: 'Back and biceps',
-    exercises: [
-      { name: 'Barbell Row', sets: 4, reps: 8, weight: 135 },
-      { name: 'Lat Pulldown', sets: 3, reps: 10 },
-      { name: 'Face Pulls', sets: 3, reps: 15 },
-      { name: 'Bicep Curls', sets: 3, reps: 12 },
-      { name: 'Pull-ups', sets: 3, reps: 8 },
-      { name: 'Hammer Curls', sets: 3, reps: 12 }
-    ]
-  },
-  {
-    id: 'legs-day',
-    name: 'Legs Day',
-    description: 'Quads, hamstrings, and calves',
-    exercises: [
-      { name: 'Squat', sets: 4, reps: 6, weight: 185 },
-      { name: 'Romanian Deadlift', sets: 3, reps: 10, weight: 135 },
-      { name: 'Leg Press', sets: 3, reps: 12 },
-      { name: 'Leg Curls', sets: 3, reps: 12 },
-      { name: 'Calf Raises', sets: 4, reps: 15 },
-      { name: 'Lunges', sets: 3, reps: 10 }
-    ]
-  },
-  {
-    id: 'upper-body',
-    name: 'Upper Body',
-    description: 'Full upper body workout',
-    exercises: [
-      { name: 'Bench Press', sets: 4, reps: 8, weight: 135 },
-      { name: 'Barbell Row', sets: 4, reps: 8, weight: 135 },
-      { name: 'Overhead Press', sets: 3, reps: 10, weight: 95 },
-      { name: 'Lat Pulldown', sets: 3, reps: 10 },
-      { name: 'Bicep Curls', sets: 3, reps: 12 },
-      { name: 'Tricep Extensions', sets: 3, reps: 12 }
-    ]
-  },
-  {
-    id: 'lower-body',
-    name: 'Lower Body',
-    description: 'Full lower body workout',
-    exercises: [
-      { name: 'Squat', sets: 4, reps: 6, weight: 185 },
-      { name: 'Deadlift', sets: 3, reps: 5, weight: 225 },
-      { name: 'Leg Press', sets: 3, reps: 12 },
-      { name: 'Leg Curls', sets: 3, reps: 12 },
-      { name: 'Calf Raises', sets: 4, reps: 15 },
-      { name: 'Leg Extensions', sets: 3, reps: 15 }
-    ]
-  },
-  {
-    id: 'full-body',
-    name: 'Full Body',
-    description: 'Complete full body routine',
-    exercises: [
-      { name: 'Squat', sets: 3, reps: 8, weight: 135 },
-      { name: 'Bench Press', sets: 3, reps: 8, weight: 135 },
-      { name: 'Barbell Row', sets: 3, reps: 8, weight: 135 },
-      { name: 'Overhead Press', sets: 3, reps: 10, weight: 95 },
-      { name: 'Lat Pulldown', sets: 3, reps: 10 },
-      { name: 'Plank', sets: 3, reps: 60 }
-    ]
-  }
-];
+import { BUILT_IN_TEMPLATES } from '../lib/workoutTemplates';
+
 
 interface ExerciseTemplatesProps {
   isOpen: boolean;
@@ -105,8 +27,8 @@ export const ExerciseTemplates: React.FC<ExerciseTemplatesProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-6">
-      <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4 sm:p-6">
+      <div className="bg-zinc-900 rounded-2xl p-4 sm:p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-xl font-bold">Workout Templates</h2>

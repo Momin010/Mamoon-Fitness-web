@@ -330,7 +330,7 @@ const AdminCoachApplications: React.FC = () => {
       {/* Detail Modal */}
       {selectedApp && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-zinc-900 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
+          <div className="bg-zinc-900 w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
             {/* Modal Header */}
             <div className="sticky top-0 bg-zinc-900 border-b border-zinc-800 p-4 flex items-center justify-between">
               <h2 className="text-lg font-bold">Application Details</h2>

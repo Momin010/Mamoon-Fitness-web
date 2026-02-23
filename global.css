@@ -1,3 +1,7 @@
+/* Import custom scrollbar styles from public/index.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Note: Global custom scrollbar styles are defined in public/index.css
+   and applied automatically to all scrollable elements */

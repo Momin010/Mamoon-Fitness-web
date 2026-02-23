@@ -273,6 +273,202 @@ export interface Database {
           updated_at?: string
         }
       }
+      user_profiles: {
+        Row: {
+          id: string
+          height_cm: number | null
+          weight_kg: number | null
+          age: number | null
+          sex: string | null
+          body_fat_percent: number | null
+          goals: string[]
+          activity_level: string | null
+          diet_preferences: string[]
+          experience_level: string | null
+          bmr: number | null
+          tdee: number | null
+          target_calories: number | null
+          target_protein_g: number | null
+          target_carbs_g: number | null
+          target_fats_g: number | null
+          onboarding_completed: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          height_cm?: number | null
+          weight_kg?: number | null
+          age?: number | null
+          sex?: string | null
+          body_fat_percent?: number | null
+          goals?: string[]
+          activity_level?: string | null
+          diet_preferences?: string[]
+          experience_level?: string | null
+          bmr?: number | null
+          tdee?: number | null
+          target_calories?: number | null
+          target_protein_g?: number | null
+          target_carbs_g?: number | null
+          target_fats_g?: number | null
+          onboarding_completed?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          height_cm?: number | null
+          weight_kg?: number | null
+          age?: number | null
+          sex?: string | null
+          body_fat_percent?: number | null
+          goals?: string[]
+          activity_level?: string | null
+          diet_preferences?: string[]
+          experience_level?: string | null
+          bmr?: number | null
+          tdee?: number | null
+          target_calories?: number | null
+          target_protein_g?: number | null
+          target_carbs_g?: number | null
+          target_fats_g?: number | null
+          onboarding_completed?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      workout_plans: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          description: string | null
+          experience_level: string | null
+          days_per_week: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          description?: string | null
+          experience_level?: string | null
+          days_per_week?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          description?: string | null
+          experience_level?: string | null
+          days_per_week?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      workout_days: {
+        Row: {
+          id: string
+          plan_id: string
+          day_number: number
+          name: string
+          is_rest_day: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          plan_id: string
+          day_number: number
+          name: string
+          is_rest_day?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          plan_id?: string
+          day_number?: number
+          name?: string
+          is_rest_day?: boolean
+          created_at?: string
+        }
+      }
+      plan_exercises: {
+        Row: {
+          id: string
+          day_id: string
+          exercise_id: string
+          exercise_name: string
+          sets: number
+          reps: string
+          rest_seconds: number
+          order_index: number
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          day_id: string
+          exercise_id: string
+          exercise_name: string
+          sets?: number
+          reps?: string
+          rest_seconds?: number
+          order_index?: number
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          day_id?: string
+          exercise_id?: string
+          exercise_name?: string
+          sets?: number
+          reps?: string
+          rest_seconds?: number
+          order_index?: number
+          notes?: string | null
+          created_at?: string
+        }
+      }
+      exercise_set_logs: {
+        Row: {
+          id: string
+          workout_exercise_id: string
+          set_number: number
+          target_reps: string | null
+          actual_reps: number | null
+          weight_kg: number | null
+          completed: boolean
+          completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          workout_exercise_id: string
+          set_number: number
+          target_reps?: string | null
+          actual_reps?: number | null
+          weight_kg?: number | null
+          completed?: boolean
+          completed_at?: string | null
+        }
+        Update: {
+          id?: string
+          workout_exercise_id?: string
+          set_number?: number
+          target_reps?: string | null
+          actual_reps?: number | null
+          weight_kg?: number | null
+          completed?: boolean
+          completed_at?: string | null
+        }
+      }
     }
     Views: {
       [_ in never]: never

@@ -5,8 +5,10 @@ import { ChevronLeft, QrCode, Camera, Keyboard, AlertCircle, History } from 'luc
 import { useApp } from '../context/AppContext';
 import { useOpenFoodFacts, getRecentScans, getCachedProduct } from '../hooks/useOpenFoodFacts';
 import BarcodeScanner from '../components/BarcodeScanner';
+import PhotoLogScanner from '../components/PhotoLogScanner';
 import BarcodeMealPreview from '../components/BarcodeMealPreview';
-import { OpenFoodFactsProduct } from '../lib/openFoodFacts';
+import { OpenFoodFactsProduct, searchProducts } from '../lib/openFoodFacts';
+import { identifyFood } from '../lib/gemini';
 
 const AddMealPage: React.FC = () => {
   const navigate = useNavigate();
@@ -14,8 +16,11 @@ const AddMealPage: React.FC = () => {
   const { product, isLoading, error, errorType, lookupBarcode, clearError } = useOpenFoodFacts();
   const [view, setView] = useState<'options' | 'manual'>('options');
   const [showScanner, setShowScanner] = useState(false);
+  const [showPhotoLog, setShowPhotoLog] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [scannedProduct, setScannedProduct] = useState<OpenFoodFactsProduct | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [recentScans, setRecentScans] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     name: '',
@@ -32,6 +37,58 @@ const AddMealPage: React.FC = () => {
   useEffect(() => {
     setRecentScans(getRecentScans());
   }, []);
+
+  // Handle photo capture and analysis
+  const handlePhotoCapture = async (base64Image: string) => {
+    setIsAnalyzing(true);
+    setAiError(null);
+
+    try {
+      const result = await identifyFood(base64Image);
+
+      if (!result.success || !result.analysis) {
+        setAiError(result.error || 'Failed to identify food');
+        setIsAnalyzing(false);
+        return;
+      }
+
+      const { analysis } = result;
+
+      // Try to search OpenFoodFacts for more accurate data using the AI's search query
+      const searchResult = await searchProducts(analysis.searchQuery);
+
+      if (searchResult.success && searchResult.products.length > 0) {
+        // Use the first result from OFF
+        setScannedProduct(searchResult.products[0]);
+      } else {
+        // Fallback to Gemini's estimates
+        // Normalize to per-100g values as the previewer expects this
+        const { estimatedMacros } = analysis;
+        const ratio = 100 / estimatedMacros.servingSizeGrams;
+
+        setScannedProduct({
+          barcode: 'ai-generated',
+          name: analysis.name,
+          brand: 'AI Estimated',
+          calories: Math.round(estimatedMacros.calories * ratio),
+          protein: Math.round(estimatedMacros.protein * ratio * 10) / 10,
+          carbs: Math.round(estimatedMacros.carbs * ratio * 10) / 10,
+          fat: Math.round(estimatedMacros.fats * ratio * 10) / 10,
+          servingSize: estimatedMacros.servingSizeGrams,
+          hasCompleteData: true,
+          missingFields: []
+        });
+      }
+
+      setShowPhotoLog(false);
+      setShowPreview(true);
+    } catch (err) {
+      console.error('Photo log error:', err);
+      setAiError('An unexpected error occurred during AI analysis');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   // Handle barcode scan - don't close scanner, let it show loading state
   const handleBarcodeScan = async (barcode: string) => {
@@ -104,7 +161,7 @@ const AddMealPage: React.FC = () => {
       case 'carbs':
       case 'fats':
         if (value) {
-          const num = parseInt(value);
+          const num = parseFloat(value);
           if (isNaN(num) || num < 0) return 'Must be a positive number';
           if (num > 500) return 'That seems too high (max 500g)';
         }
@@ -121,7 +178,7 @@ const AddMealPage: React.FC = () => {
     newErrors.protein = validateField('protein', formData.protein);
     newErrors.carbs = validateField('carbs', formData.carbs);
     newErrors.fats = validateField('fats', formData.fats);
-    
+
     setErrors(newErrors);
     return !Object.values(newErrors).some(e => e);
   };
@@ -132,24 +189,35 @@ const AddMealPage: React.FC = () => {
   };
 
   const handleChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (touched[field]) {
-      setErrors(prev => ({ ...prev, [field]: validateField(field, value) }));
+    // Allow decimal values for macro fields
+    if (['protein', 'carbs', 'fats'].includes(field)) {
+      // Allow empty, numbers, and one decimal point
+      if (value === '' || /^\d*\.?\d*$/.test(value)) {
+        setFormData(prev => ({ ...prev, [field]: value }));
+        if (touched[field]) {
+          setErrors(prev => ({ ...prev, [field]: validateField(field, value) }));
+        }
+      }
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+      if (touched[field]) {
+        setErrors(prev => ({ ...prev, [field]: validateField(field, value) }));
+      }
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setTouched({ name: true, calories: true, protein: true, carbs: true, fats: true });
-    
+
     if (!validateForm()) return;
 
     addMeal({
       name: formData.name.trim(),
       calories: parseInt(formData.calories),
-      protein: parseInt(formData.protein) || 0,
-      carbs: parseInt(formData.carbs) || 0,
-      fats: parseInt(formData.fats) || 0,
+      protein: parseFloat(formData.protein) || 0,
+      carbs: parseFloat(formData.carbs) || 0,
+      fats: parseFloat(formData.fats) || 0,
       mealType: formData.mealType
     });
     navigate('/macros');
@@ -174,11 +242,10 @@ const AddMealPage: React.FC = () => {
                   key={type}
                   type="button"
                   onClick={() => setFormData(prev => ({ ...prev, mealType: type }))}
-                  className={`py-3 rounded-lg text-sm font-medium capitalize transition-colors ${
-                    formData.mealType === type 
-                      ? 'bg-green-500 text-black' 
-                      : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800'
-                  }`}
+                  className={`py-3 rounded-lg text-sm font-medium capitalize transition-colors ${formData.mealType === type
+                    ? 'bg-green-500 text-black'
+                    : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800'
+                    }`}
                 >
                   {type}
                 </button>
@@ -188,12 +255,11 @@ const AddMealPage: React.FC = () => {
 
           <div>
             <label className="block text-zinc-500 text-sm font-medium mb-2">Meal Name *</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="e.g., Chicken Salad"
-              className={`w-full bg-transparent border-b-2 py-3 text-xl outline-none transition-colors ${
-                errors.name && touched.name ? 'border-red-500' : 'border-zinc-800 focus:border-green-500'
-              }`}
+              className={`w-full bg-transparent border-b-2 py-3 text-xl outline-none transition-colors ${errors.name && touched.name ? 'border-red-500' : 'border-zinc-800 focus:border-green-500'
+                }`}
               value={formData.name}
               onChange={e => handleChange('name', e.target.value)}
               onBlur={() => handleBlur('name')}
@@ -207,12 +273,11 @@ const AddMealPage: React.FC = () => {
 
           <div>
             <label className="block text-zinc-500 text-sm font-medium mb-2">Calories *</label>
-            <input 
-              type="number" 
+            <input
+              type="number"
               placeholder="0 kcal"
-              className={`w-full bg-transparent border-b-2 py-3 text-xl outline-none transition-colors ${
-                errors.calories && touched.calories ? 'border-red-500' : 'border-zinc-800 focus:border-green-500'
-              }`}
+              className={`w-full bg-transparent border-b-2 py-3 text-xl outline-none transition-colors ${errors.calories && touched.calories ? 'border-red-500' : 'border-zinc-800 focus:border-green-500'
+                }`}
               value={formData.calories}
               onChange={e => handleChange('calories', e.target.value)}
               onBlur={() => handleBlur('calories')}
@@ -230,12 +295,12 @@ const AddMealPage: React.FC = () => {
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-zinc-600 text-xs mb-1">Protein (g)</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
+                  step="0.1"
                   placeholder="0"
-                  className={`w-full bg-zinc-900 rounded-lg px-3 py-3 text-lg outline-none transition-colors ${
-                    errors.protein && touched.protein ? 'border border-red-500' : 'border border-zinc-800 focus:border-green-500'
-                  }`}
+                  className={`w-full bg-zinc-900 rounded-lg px-3 py-3 text-lg outline-none transition-colors ${errors.protein && touched.protein ? 'border border-red-500' : 'border border-zinc-800 focus:border-green-500'
+                    }`}
                   value={formData.protein}
                   onChange={e => handleChange('protein', e.target.value)}
                   onBlur={() => handleBlur('protein')}
@@ -247,12 +312,12 @@ const AddMealPage: React.FC = () => {
               </div>
               <div>
                 <label className="block text-zinc-600 text-xs mb-1">Carbs (g)</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
+                  step="0.1"
                   placeholder="0"
-                  className={`w-full bg-zinc-900 rounded-lg px-3 py-3 text-lg outline-none transition-colors ${
-                    errors.carbs && touched.carbs ? 'border border-red-500' : 'border border-zinc-800 focus:border-green-500'
-                  }`}
+                  className={`w-full bg-zinc-900 rounded-lg px-3 py-3 text-lg outline-none transition-colors ${errors.carbs && touched.carbs ? 'border border-red-500' : 'border border-zinc-800 focus:border-green-500'
+                    }`}
                   value={formData.carbs}
                   onChange={e => handleChange('carbs', e.target.value)}
                   onBlur={() => handleBlur('carbs')}
@@ -264,12 +329,12 @@ const AddMealPage: React.FC = () => {
               </div>
               <div>
                 <label className="block text-zinc-600 text-xs mb-1">Fats (g)</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
+                  step="0.1"
                   placeholder="0"
-                  className={`w-full bg-zinc-900 rounded-lg px-3 py-3 text-lg outline-none transition-colors ${
-                    errors.fats && touched.fats ? 'border border-red-500' : 'border border-zinc-800 focus:border-green-500'
-                  }`}
+                  className={`w-full bg-zinc-900 rounded-lg px-3 py-3 text-lg outline-none transition-colors ${errors.fats && touched.fats ? 'border border-red-500' : 'border border-zinc-800 focus:border-green-500'
+                    }`}
                   value={formData.fats}
                   onChange={e => handleChange('fats', e.target.value)}
                   onBlur={() => handleBlur('fats')}
@@ -283,7 +348,7 @@ const AddMealPage: React.FC = () => {
           </div>
 
           <div className="pt-8">
-            <button 
+            <button
               type="submit"
               className="w-full bg-green-500 text-black py-4 rounded-lg font-bold uppercase tracking-widest hover:bg-green-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -305,7 +370,7 @@ const AddMealPage: React.FC = () => {
       </header>
 
       <div className="space-y-6">
-        <button 
+        <button
           onClick={() => setView('manual')}
           className="w-full p-6 bg-zinc-900 rounded-2xl hover:bg-zinc-800 transition-colors text-left"
         >
@@ -320,22 +385,22 @@ const AddMealPage: React.FC = () => {
           </div>
         </button>
 
-        <button 
-          disabled
-          className="w-full p-6 bg-zinc-900/50 rounded-2xl opacity-50 cursor-not-allowed text-left"
+        <button
+          onClick={() => setShowPhotoLog(true)}
+          className="w-full p-6 bg-zinc-900 rounded-2xl hover:bg-zinc-800 transition-all active:scale-[0.98] text-left border-2 border-transparent hover:border-green-500/30"
         >
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-zinc-800 rounded-xl">
-              <Camera size={24} className="text-zinc-500" />
+            <div className="p-3 bg-green-500/20 rounded-xl">
+              <Camera size={24} className="text-green-500" />
             </div>
             <div>
               <h3 className="font-bold text-lg">Photo Log</h3>
-              <p className="text-zinc-500 text-sm">Coming soon - AI-powered food recognition</p>
+              <p className="text-zinc-400 text-sm">AI Food & Drink Recognition (Gemini)</p>
             </div>
           </div>
         </button>
 
-        <button 
+        <button
           onClick={() => {
             console.log('Scan Barcode button clicked!');
             setShowScanner(true);
@@ -393,6 +458,14 @@ const AddMealPage: React.FC = () => {
         isLookupLoading={isLoading}
       />
 
+      {/* Photo Log Scanner Modal */}
+      <PhotoLogScanner
+        isOpen={showPhotoLog}
+        onClose={() => setShowPhotoLog(false)}
+        onCapture={handlePhotoCapture}
+        isAnalyzing={isAnalyzing}
+      />
+
       {/* Product Preview Modal */}
       {showPreview && scannedProduct && (
         <BarcodeMealPreview
@@ -406,25 +479,28 @@ const AddMealPage: React.FC = () => {
       )}
 
       {/* Error Toast */}
-      {error && (
-        <div className="fixed bottom-24 left-4 right-4 z-50">
-          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
+      {(error || aiError) && (
+        <div className="fixed bottom-24 left-4 right-4 z-50 max-w-md mx-auto">
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 sm:p-4 flex items-start gap-3">
             <AlertCircle className="text-red-500 shrink-0" size={20} />
             <div className="flex-1">
-              <p className="text-red-400 font-medium">{error}</p>
+              <p className="text-red-400 font-medium">{error || aiError}</p>
               {errorType === 'not_found' && (
                 <p className="text-zinc-500 text-sm mt-1">
                   Try manual entry or check the barcode.
                 </p>
               )}
-              {errorType === 'no_nutrition_data' && (
+              {errorType === 'api_error' && !aiError && (
                 <p className="text-zinc-500 text-sm mt-1">
-                  Product found but no nutrition info available.
+                  OFF database connection error.
                 </p>
               )}
             </div>
-            <button 
-              onClick={clearError}
+            <button
+              onClick={() => {
+                clearError();
+                setAiError(null);
+              }}
               className="text-zinc-500 hover:text-white"
             >
               ✕

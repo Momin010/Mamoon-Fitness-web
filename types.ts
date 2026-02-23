@@ -24,7 +24,7 @@ export interface Exercise {
   id: string;
   name: string;
   sets: number;
-  reps: number;
+  reps: number | string;
   completedSets: number;
   weight?: number;
   notes?: string;

@@ -1,6 +1,6 @@
 
-import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
 import { AppProvider } from './context/AppContext';
@@ -9,6 +9,9 @@ import { ThemeProvider } from './context/ThemeContext';
 import { useSupabase } from './context/SupabaseContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import BottomNav from './components/BottomNav';
+import ScrollbarStyles from './components/ScrollbarStyles';
+import { supabase } from './lib/supabase';
+
 
 // Lazy load pages for code splitting
 const WorkoutPage = lazy(() => import('./pages/WorkoutPage'));
@@ -30,13 +33,55 @@ const CommunityHub = lazy(() => import('./pages/CommunityHub'));
 const PublicProfilePage = lazy(() => import('./pages/PublicProfilePage'));
 const MessagesPage = lazy(() => import('./pages/MessagesPage'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
+const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
 
-// Protected route component
+// Protected route component with onboarding check
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoading, isConfigured } = useSupabase();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
-  if (isLoading) {
+  useEffect(() => {
+    async function checkOnboarding() {
+      if (!isConfigured || !user) {
+        setCheckingOnboarding(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('onboarding_completed')
+          .eq('id', user.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error checking onboarding:', error);
+        }
+        
+        // If no profile or onboarding not completed, redirect
+        if (!data || !data.onboarding_completed) {
+          setNeedsOnboarding(true);
+        }
+      } catch (err) {
+        console.error('Error:', err);
+      } finally {
+        setCheckingOnboarding(false);
+      }
+    }
+
+    checkOnboarding();
+  }, [user, isConfigured]);
+
+  useEffect(() => {
+    if (!checkingOnboarding && needsOnboarding && location.pathname !== '/onboarding') {
+      navigate('/onboarding');
+    }
+  }, [checkingOnboarding, needsOnboarding, navigate, location.pathname]);
+
+  if (isLoading || checkingOnboarding) {
     return (
       <div className="flex-1 flex items-center justify-center bg-black">
         <Loader2 className="animate-spin text-green-500" size={48} />
@@ -58,6 +103,15 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <AuthPage />;
   }
 
+  // If needs onboarding, don't render children (will redirect)
+  if (needsOnboarding && location.pathname !== '/onboarding') {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-black">
+        <Loader2 className="animate-spin text-green-500" size={48} />
+      </div>
+    );
+  }
+
   return <>{children}</>;
 };
 
@@ -71,15 +125,20 @@ const AppContent: React.FC = () => {
   // Show auth page if Supabase is configured, user is not logged in, and it's not an admin route
   if (isConfigured && !user && !isAdminRoute) {
     return (
-      <div className="flex flex-col min-h-screen bg-black text-white max-w-md mx-auto relative border-x border-zinc-900 shadow-2xl">
+      <div className="flex flex-col min-h-screen bg-black text-white max-w-md mx-auto relative border-x border-zinc-900 shadow-2xl overflow-hidden">
         <AuthPage />
       </div>
     );
   }
 
+
+  // Check if on onboarding page
+  const isOnboarding = location.pathname === '/onboarding';
+
   return (
-    <div className="flex flex-col min-h-screen bg-black text-white pb-20 max-w-md mx-auto relative border-x border-zinc-900 shadow-2xl">
+    <div className={`flex flex-col min-h-screen bg-black text-white max-w-md mx-auto relative border-x border-zinc-900 shadow-2xl overflow-hidden ${isOnboarding ? '' : 'pb-20'}`}>
       <Suspense fallback={
+
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="animate-spin text-green-500" size={48} />
         </div>
@@ -87,6 +146,7 @@ const AppContent: React.FC = () => {
         <Routes>
           <Route path="/" element={<Navigate to="/workout" />} />
           <Route path="/auth" element={<AuthPage />} />
+          <Route path="/onboarding" element={<OnboardingPage />} />
 
           <Route path="/workout" element={
             <ProtectedRoute>
@@ -191,7 +251,7 @@ const AppContent: React.FC = () => {
           } />
         </Routes>
       </Suspense>
-      {(!isConfigured || user) && <BottomNav />}
+      {(!isConfigured || user) && !isOnboarding && <BottomNav />}
     </div>
   );
 };
@@ -203,6 +263,7 @@ const App: React.FC = () => {
         <ThemeProvider>
           <AppProvider>
             <Router>
+              <ScrollbarStyles />
               <AppContent />
             </Router>
           </AppProvider>
@@ -211,5 +272,6 @@ const App: React.FC = () => {
     </ErrorBoundary>
   );
 };
+
 
 export default App;

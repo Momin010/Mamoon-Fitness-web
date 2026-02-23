@@ -26,6 +26,7 @@ export interface OFFLookupResult {
 }
 
 const OFF_API_BASE = 'https://world.openfoodfacts.org/api/v2/product';
+const OFF_SEARCH_BASE = 'https://world.openfoodfacts.org/cgi/search.pl';
 
 /**
  * Convert kJ to kcal
@@ -47,7 +48,7 @@ const parseQuantity = (quantity?: string): number => {
  */
 const normalizeMacros = (nutriments: any): Partial<OpenFoodFactsProduct> => {
   const missingFields: string[] = [];
-  
+
   // Calories - check multiple possible fields
   let calories: number | null = null;
   if (nutriments['energy-kcal_100g'] !== undefined) {
@@ -60,7 +61,7 @@ const normalizeMacros = (nutriments: any): Partial<OpenFoodFactsProduct> => {
   } else if (nutriments['energy'] !== undefined) {
     calories = kjToKcal(nutriments['energy']);
   }
-  
+
   if (calories === null || isNaN(calories)) {
     missingFields.push('calories');
     calories = 0;
@@ -73,7 +74,7 @@ const normalizeMacros = (nutriments: any): Partial<OpenFoodFactsProduct> => {
   } else if (nutriments['proteins'] !== undefined) {
     protein = nutriments['proteins'];
   }
-  
+
   if (protein === null || isNaN(protein)) {
     missingFields.push('protein');
     protein = 0;
@@ -86,7 +87,7 @@ const normalizeMacros = (nutriments: any): Partial<OpenFoodFactsProduct> => {
   } else if (nutriments['carbohydrates'] !== undefined) {
     carbs = nutriments['carbohydrates'];
   }
-  
+
   if (carbs === null || isNaN(carbs)) {
     missingFields.push('carbs');
     carbs = 0;
@@ -99,7 +100,7 @@ const normalizeMacros = (nutriments: any): Partial<OpenFoodFactsProduct> => {
   } else if (nutriments['fat'] !== undefined) {
     fat = nutriments['fat'];
   }
-  
+
   if (fat === null || isNaN(fat)) {
     missingFields.push('fat');
     fat = 0;
@@ -125,19 +126,19 @@ const determineServingSize = (product: any): number => {
     const qty = parseFloat(product.serving_quantity);
     if (!isNaN(qty) && qty > 0) return qty;
   }
-  
+
   // Check serving_size string (e.g., "30g")
   if (product.serving_size) {
     const parsed = parseQuantity(product.serving_size);
     if (parsed > 0) return parsed;
   }
-  
+
   // Check quantity (e.g., "500g")
   if (product.quantity) {
     const parsed = parseQuantity(product.quantity);
     if (parsed > 0) return parsed;
   }
-  
+
   // Default to 100g
   return 100;
 };
@@ -157,7 +158,7 @@ export const lookupBarcode = async (barcode: string): Promise<OFFLookupResult> =
     }
 
     const cleanBarcode = barcode.trim();
-    
+
     // Fetch from OFF API
     const response = await fetch(`${OFF_API_BASE}/${cleanBarcode}.json`, {
       method: 'GET',
@@ -240,6 +241,71 @@ export const lookupBarcode = async (barcode: string): Promise<OFFLookupResult> =
 };
 
 /**
+ * Search for products by name
+ */
+export const searchProducts = async (query: string): Promise<{ success: boolean; products: OpenFoodFactsProduct[]; error?: string }> => {
+  try {
+    if (!query || query.trim().length < 2) {
+      return { success: false, products: [], error: 'Search query too short' };
+    }
+
+    const url = `${OFF_SEARCH_BASE}?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=true&page_size=5`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      return { success: false, products: [], error: `API error: ${response.status}` };
+    }
+
+    const data = await response.json();
+
+    if (!data.products || data.products.length === 0) {
+      return { success: true, products: [] };
+    }
+
+    const normalizedProducts: OpenFoodFactsProduct[] = data.products
+      .filter((p: any) => p.nutriments && Object.keys(p.nutriments).length > 0)
+      .map((product: any) => {
+        const macros = normalizeMacros(product.nutriments);
+        const servingSize = determineServingSize(product);
+
+        return {
+          barcode: product.code || '',
+          name: product.product_name_en || product.product_name || 'Unknown Product',
+          brand: product.brands || product.brand_owner || 'Unknown Brand',
+          imageUrl: product.image_url || product.image_small_url,
+          servingSize,
+          calories: macros.calories || 0,
+          protein: macros.protein || 0,
+          carbs: macros.carbs || 0,
+          fat: macros.fat || 0,
+          hasCompleteData: macros.hasCompleteData || false,
+          missingFields: macros.missingFields || [],
+          rawData: product
+        };
+      });
+
+    return {
+      success: true,
+      products: normalizedProducts
+    };
+
+  } catch (error) {
+    console.error('OpenFoodFacts search error:', error);
+    return {
+      success: false,
+      products: [],
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+};
+
+/**
  * Scale macros based on serving size
  * All macros stored per 100g, scale proportionally
  */
@@ -248,7 +314,7 @@ export const scaleMacros = (
   targetServingSize: number
 ): { calories: number; protein: number; carbs: number; fat: number } => {
   const ratio = targetServingSize / 100; // All macros are per 100g
-  
+
   return {
     calories: Math.round(product.calories * ratio),
     protein: Math.round(product.protein * ratio * 10) / 10, // Keep 1 decimal
@@ -265,7 +331,7 @@ export const calculateServingMacros = (
   servingSize: number
 ) => {
   const scaled = scaleMacros(product, servingSize);
-  
+
   return {
     ...scaled,
     servingSize,

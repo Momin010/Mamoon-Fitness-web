@@ -723,8 +723,8 @@ const EnhancedSettingsPage: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-6 z-50">
-          <div className="bg-zinc-900 rounded-2xl p-6 max-w-sm w-full">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 sm:p-6 z-50">
+          <div className="bg-zinc-900 rounded-2xl p-4 sm:p-6 max-w-sm w-full">
             <div className="flex items-center gap-3 text-red-400 mb-4">
               <AlertTriangle size={24} />
               <h2 className="text-lg font-bold">Delete Account?</h2>

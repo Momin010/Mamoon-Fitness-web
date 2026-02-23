@@ -90,6 +90,117 @@ body {
 }
 
 /* ============================================
+   GLOBAL CUSTOM SCROLLBAR - APPLIES TO ALL SCROLLABLE ELEMENTS
+   ============================================ */
+
+/* Apply to ALL elements - most aggressive selector */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3f3f46 transparent;
+}
+
+/* WebKit browsers (Chrome, Safari, Edge) - apply to ALL elements */
+*::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #3f3f46 !important;
+  border-radius: 9999px !important;
+  border: none !important;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #52525b !important;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
+/* Specific selectors for common scrollable containers */
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+div::-webkit-scrollbar,
+section::-webkit-scrollbar,
+article::-webkit-scrollbar,
+aside::-webkit-scrollbar,
+nav::-webkit-scrollbar,
+main::-webkit-scrollbar,
+header::-webkit-scrollbar,
+footer::-webkit-scrollbar,
+ul::-webkit-scrollbar,
+ol::-webkit-scrollbar,
+li::-webkit-scrollbar,
+form::-webkit-scrollbar,
+table::-webkit-scrollbar,
+textarea::-webkit-scrollbar,
+iframe::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+/* Force override for Tailwind overflow classes */
+.overflow-auto::-webkit-scrollbar,
+.overflow-y-auto::-webkit-scrollbar,
+.overflow-x-auto::-webkit-scrollbar,
+.overflow-scroll::-webkit-scrollbar,
+.overflow-y-scroll::-webkit-scrollbar,
+.overflow-x-scroll::-webkit-scrollbar,
+[class*="overflow-"]::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+.overflow-auto::-webkit-scrollbar-thumb,
+.overflow-y-auto::-webkit-scrollbar-thumb,
+.overflow-x-auto::-webkit-scrollbar-thumb,
+.overflow-scroll::-webkit-scrollbar-thumb,
+.overflow-y-scroll::-webkit-scrollbar-thumb,
+.overflow-x-scroll::-webkit-scrollbar-thumb,
+[class*="overflow-"]::-webkit-scrollbar-thumb {
+  background: #3f3f46 !important;
+  border-radius: 9999px !important;
+}
+
+.overflow-auto::-webkit-scrollbar-thumb:hover,
+.overflow-y-auto::-webkit-scrollbar-thumb:hover,
+.overflow-x-auto::-webkit-scrollbar-thumb:hover,
+.overflow-scroll::-webkit-scrollbar-thumb:hover,
+.overflow-y-scroll::-webkit-scrollbar-thumb:hover,
+.overflow-x-scroll::-webkit-scrollbar-thumb:hover,
+[class*="overflow-"]::-webkit-scrollbar-thumb:hover {
+  background: #52525b !important;
+}
+
+/* Firefox - all elements */
+html,
+body,
+div,
+section,
+article,
+aside,
+nav,
+main,
+header,
+footer,
+ul,
+ol,
+li,
+form,
+table,
+textarea,
+iframe {
+  scrollbar-width: thin !important;
+  scrollbar-color: #3f3f46 transparent !important;
+}
+
+/* ============================================
    CUSTOM SCROLLBAR - HIDDEN BY DEFAULT
    ============================================ */
 .hide-scrollbar {

@@ -169,7 +169,7 @@ export const ForgeDropdown: React.FC<ForgeDropdownProps> = ({
       {/* Mobile Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-40 md:hidden"
+          className="fixed inset-0 bg-black/60 z-40"
           onClick={() => setIsOpen(false)}
         />
       )}
@@ -178,16 +178,15 @@ export const ForgeDropdown: React.FC<ForgeDropdownProps> = ({
       <div
         className={`
           ${isOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}
-          ${isOpen ? 'translate-y-0 md:translate-y-0' : 'translate-y-2 md:translate-y-[-10px]'}
-          fixed md:absolute left-0 right-0 md:left-auto md:right-auto md:w-full
-          bottom-0 md:top-full md:bottom-auto
-          md:mt-2
+          ${isOpen ? 'translate-y-0' : 'translate-y-2'}
+          fixed left-0 right-0 bottom-0
           bg-zinc-900 border border-zinc-800
-          md:rounded-xl rounded-t-2xl
+          rounded-t-2xl
           shadow-2xl z-50
           transition-all duration-200 ease-out
-          max-h-[70vh] md:max-h-80
+          max-h-[70vh]
           flex flex-col
+          max-w-md mx-auto
         `}
         role="listbox"
       >
