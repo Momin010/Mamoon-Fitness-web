@@ -6,12 +6,11 @@ import { Loader2 } from 'lucide-react';
 import { AppProvider } from './context/AppContext';
 import { SupabaseProvider } from './context/SupabaseContext';
 import { ThemeProvider } from './context/ThemeContext';
-import { LegalProvider, useLegal } from './context/LegalContext';
+import { LegalProvider } from './context/LegalContext';
 import { useSupabase } from './context/SupabaseContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import BottomNav from './components/BottomNav';
 import ScrollbarStyles from './components/ScrollbarStyles';
-import LegalModal from './components/LegalModal';
 import { supabase } from './lib/supabase';
 
 
@@ -119,20 +118,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 const AppContent: React.FC = () => {
   const { user, isConfigured } = useSupabase();
-  const { hasAcceptedLegal, acceptLegal } = useLegal();
   const location = useLocation();
 
   // For admin routes, skip the early auth check
   const isAdminRoute = location.pathname.startsWith('/admin');
-
-  // Show legal modal if user hasn't accepted
-  if (!hasAcceptedLegal) {
-    return (
-      <div className="flex flex-col min-h-screen bg-black text-white max-w-md mx-auto relative border-x border-zinc-900 shadow-2xl overflow-hidden">
-        <LegalModal onAccept={acceptLegal} />
-      </div>
-    );
-  }
 
   // Show auth page if Supabase is configured, user is not logged in, and it's not an admin route
   if (isConfigured && !user && !isAdminRoute) {

@@ -1,10 +1,13 @@
 
 import React, { useState } from 'react';
 import { useSupabase } from '../context/SupabaseContext';
+import { useLegal } from '../context/LegalContext';
+import LegalModal from '../components/LegalModal';
 import { Dumbbell, Mail, Lock, User, AlertCircle, Loader2 } from 'lucide-react';
 
 const AuthPage: React.FC = () => {
   const { signIn, signUp, isConfigured } = useSupabase();
+  const { acceptLegal } = useLegal();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -12,6 +15,8 @@ const AuthPage: React.FC = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [showLegalModal, setShowLegalModal] = useState(false);
+  const [pendingSignup, setPendingSignup] = useState<{email: string; password: string; name: string} | null>(null);
 
   if (!isConfigured) {
     return (
@@ -45,15 +50,30 @@ const AuthPage: React.FC = () => {
         setError(error.message || 'Failed to sign in');
       }
     } else {
-      const { error } = await signUp(email, password, name);
-      if (error) {
-        setError(error.message || 'Failed to sign up');
-      } else {
-        setMessage('Check your email to confirm your account!');
-      }
+      // Show legal modal before signup
+      setPendingSignup({ email, password, name });
+      setShowLegalModal(true);
     }
 
     setIsLoading(false);
+  };
+
+  const handleLegalAccept = async () => {
+    if (!pendingSignup) return;
+    
+    setShowLegalModal(false);
+    setIsLoading(true);
+    
+    const { error } = await signUp(pendingSignup.email, pendingSignup.password, pendingSignup.name);
+    if (error) {
+      setError(error.message || 'Failed to sign up');
+    } else {
+      acceptLegal();
+      setMessage('Check your email to confirm your account!');
+    }
+    
+    setIsLoading(false);
+    setPendingSignup(null);
   };
 
   return (
@@ -166,6 +186,19 @@ const AuthPage: React.FC = () => {
           Staff / Coach Admin Portal
         </a>
       </div>
+
+      {/* Legal Modal Overlay */}
+      {showLegalModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/60" 
+            onClick={() => setShowLegalModal(false)}
+          />
+          <div className="relative z-10 w-full max-w-sm">
+            <LegalModal onAccept={handleLegalAccept} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
