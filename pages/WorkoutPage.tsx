@@ -301,7 +301,7 @@ const WorkoutPage: React.FC = () => {
   if (showCompletion) {
     const stats = getWorkoutStats();
     return (
-      <div className="fixed inset-0 bg-black flex flex-col items-center justify-center p-4 sm:p-6 text-white z-40">
+      <div className="absolute inset-0 bg-black flex flex-col items-center justify-center p-4 sm:p-6 text-white z-40">
         <div className="w-full max-w-md">
           <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
             <button
@@ -361,7 +361,7 @@ const WorkoutPage: React.FC = () => {
     const stats = getWorkoutStats();
 
     return (
-      <div className="fixed inset-0 bg-black flex flex-col items-center p-4 sm:p-6 text-white z-40">
+      <div className="absolute inset-0 bg-black flex flex-col items-center p-4 sm:p-6 text-white z-40">
         <div className="w-full max-w-md h-full flex flex-col">
           {/* Header */}
           <header className="flex justify-between items-center py-4 sm:py-6 shrink-0">
@@ -517,7 +517,7 @@ const WorkoutPage: React.FC = () => {
     const estimatedDuration = exercises.length * 5 + totalSets * 1; // rough estimate
 
     return (
-      <div className="fixed inset-0 bg-black flex flex-col items-center p-4 sm:p-6 text-white z-40">
+      <div className="absolute inset-0 bg-black flex flex-col items-center p-4 sm:p-6 text-white z-40">
         <div className="w-full max-w-md h-full flex flex-col">
           <header className="flex items-center py-4 sm:py-6 shrink-0">
             <button

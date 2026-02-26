@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Dumbbell, Mail, Lock, User, AlertCircle, Loader2, ChevronRight } from 'lucide-react-native';
@@ -8,7 +8,7 @@ import { ForgeButton } from '../components/ForgeButton';
 
 export default function AuthScreen() {
     const router = useRouter();
-    const { signIn, signUp, isConfigured } = useSupabase();
+    const { signIn, signUp, isConfigured, user } = useSupabase();
 
     const [isLogin, setIsLogin] = useState(true);
     const [email, setEmail] = useState('');
@@ -17,6 +17,99 @@ export default function AuthScreen() {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [message, setMessage] = useState('');
+
+    // Redirect if already authenticated
+    useEffect(() => {
+        if (user) {
+            router.replace('/(tabs)');
+        }
+    }, [user, router]);
+
+    // Validate email format
+    const validateEmail = (email: string): boolean => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
+
+    // Validate form inputs
+    const validateForm = (): boolean => {
+        if (!email.trim()) {
+            setError('Email is required');
+            return false;
+        }
+        
+        if (!validateEmail(email)) {
+            setError('Please enter a valid email address');
+            return false;
+        }
+        
+        if (!password) {
+            setError('Password is required');
+            return false;
+        }
+        
+        if (password.length < 6) {
+            setError('Password must be at least 6 characters');
+            return false;
+        }
+        
+        if (!isLogin && !name.trim()) {
+            setError('Name is required');
+            return false;
+        }
+        
+        return true;
+    };
+
+    const handleSubmit = async () => {
+        setError('');
+        setMessage('');
+        
+        if (!validateForm()) {
+            return;
+        }
+        
+        setIsLoading(true);
+
+        try {
+            if (isLogin) {
+                const { error } = await signIn(email.trim().toLowerCase(), password);
+                if (error) {
+                    console.error('Login error:', error);
+                    setError(error.message || 'Access Denied');
+                } else {
+                    // Success - navigation will be handled by the layout
+                    setMessage('Access granted! Redirecting...');
+                }
+            } else {
+                const { error } = await signUp(email.trim().toLowerCase(), password, name.trim());
+                if (error) {
+                    console.error('Signup error:', error);
+                    setError(error.message || 'Registration Failed');
+                } else {
+                    setMessage('Verification frequency established. Check your email for confirmation.');
+                    // Clear form after successful signup
+                    setName('');
+                    setEmail('');
+                    setPassword('');
+                }
+            }
+        } catch (err) {
+            console.error('Auth error:', err);
+            setError('An unexpected error occurred. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Handle form mode switch
+    const handleModeSwitch = () => {
+        setIsLogin(!isLogin);
+        setError('');
+        setMessage('');
+        // Clear password when switching modes for security
+        setPassword('');
+    };
 
     if (!isConfigured) {
         return (
@@ -32,39 +125,18 @@ export default function AuthScreen() {
         );
     }
 
-    const handleSubmit = async () => {
-        setError('');
-        setMessage('');
-        setIsLoading(true);
-
-        try {
-            if (isLogin) {
-                const { error } = await signIn(email, password);
-                if (error) {
-                    setError(error.message || 'Access Denied');
-                } else {
-                    router.replace('/(tabs)');
-                }
-            } else {
-                const { error } = await signUp(email, password, name);
-                if (error) {
-                    setError(error.message || 'Registration Failed');
-                } else {
-                    setMessage('Verification frequency established. Check email.');
-                }
-            }
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
     return (
         <SafeAreaView className="flex-1 bg-black">
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 className="flex-1"
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
             >
-                <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="p-8">
+                <ScrollView
+                    contentContainerStyle={{ flexGrow: 1 }}
+                    className="p-8"
+                    keyboardShouldPersistTaps="handled"
+                >
                     <View className="flex-1 justify-center">
                         <View className="items-center mb-12">
                             <View className="w-24 h-24 bg-green-500/10 rounded-[2.5rem] items-center justify-center border border-green-500/20">
@@ -105,6 +177,13 @@ export default function AuthScreen() {
                                             placeholder="OPERATIVE NAME"
                                             placeholderTextColor="#27272a"
                                             className="bg-zinc-900 border border-zinc-900 focus:border-green-500/50 rounded-[2rem] py-5 pl-14 pr-6 text-white font-black italic shadow-inner"
+                                            autoCapitalize="words"
+                                            returnKeyType="next"
+                                            onSubmitEditing={() => {
+                                                // Focus next input (email)
+                                                const emailInput = document.querySelector('input[placeholder="AGENT@FORGE.COM"]');
+                                                if (emailInput) emailInput.focus();
+                                            }}
                                         />
                                     </View>
                                 </View>
@@ -124,6 +203,12 @@ export default function AuthScreen() {
                                         placeholder="AGENT@FORGE.COM"
                                         placeholderTextColor="#27272a"
                                         className="bg-zinc-900 border border-zinc-900 focus:border-green-500/50 rounded-[2rem] py-5 pl-14 pr-6 text-white font-black italic shadow-inner"
+                                        returnKeyType="next"
+                                        onSubmitEditing={() => {
+                                            // Focus next input (password)
+                                            const passwordInput = document.querySelector('input[placeholder="••••••••"]');
+                                            if (passwordInput) passwordInput.focus();
+                                        }}
                                     />
                                 </View>
                             </View>
@@ -141,6 +226,8 @@ export default function AuthScreen() {
                                         placeholder="••••••••"
                                         placeholderTextColor="#27272a"
                                         className="bg-zinc-900 border border-zinc-900 focus:border-green-500/50 rounded-[2rem] py-5 pl-14 pr-6 text-white font-black italic shadow-inner"
+                                        returnKeyType="done"
+                                        onSubmitEditing={handleSubmit}
                                     />
                                 </View>
                             </View>
@@ -151,18 +238,16 @@ export default function AuthScreen() {
                                     onPress={handleSubmit}
                                     isLoading={isLoading}
                                     uppercase
+                                    disabled={isLoading}
                                 >
                                     {isLogin ? 'Grant Access' : 'Establish Profile'}
                                 </ForgeButton>
                             </View>
 
                             <TouchableOpacity
-                                onPress={() => {
-                                    setIsLogin(!isLogin);
-                                    setError('');
-                                    setMessage('');
-                                }}
+                                onPress={handleModeSwitch}
                                 className="items-center py-4"
+                                disabled={isLoading}
                             >
                                 <Text className="text-zinc-600 font-black uppercase text-[9px] tracking-[0.2em]">
                                     {isLogin ? "Generate New Frequency?" : "Existing operative? Login"}
